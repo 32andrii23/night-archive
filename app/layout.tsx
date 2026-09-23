@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Ночной архив — дуэль в темноте",
-  description: "Два человека. Один архив. Соберите предохранители и сбегите или не дайте уйти.",
+  title: "Тихий корпус — хоррор для двоих",
+  description: "Два друга приехали в закрытую больницу. Один ищет улики и выход, другой скрывает свою настоящую форму.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

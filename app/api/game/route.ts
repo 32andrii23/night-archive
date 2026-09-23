@@ -46,7 +46,11 @@ export async function GET(request: Request) {
     const { row: r, side } = await authorize(request, codeValue);
     const now = Date.now();
     const field = side === "player" ? "player_seen" : "monster_seen";
-    await db().prepare(`UPDATE rooms SET ${field}=? WHERE code=?`).bind(now, codeValue).run();
+    const lastSeen = side === "player" ? r.player_seen : r.monster_seen;
+    // Fast state reads should not turn into a D1 write on every poll.
+    if (!lastSeen || now - lastSeen >= 4000) {
+      await db().prepare(`UPDATE rooms SET ${field}=? WHERE code=?`).bind(now, codeValue).run();
+    }
     const g = JSON.parse(r.state) as Game;
     tick(g, now);
     const otherSeen = side === "player" ? r.monster_seen : r.player_seen;
@@ -77,8 +81,8 @@ export async function POST(request: Request) {
       if (!/^[A-Z0-9]{6,8}$/.test(roomCode) || !/^[A-Za-z0-9_-]{25,100}$/.test(invite)) throw new Error("Проверьте код и приглашение.");
       const r = await row(roomCode);
       if (!r) throw new Error("Комната не найдена.");
-      if (r.monster_hash) throw new Error("Роль архивариуса уже занята. Для возвращения откройте этот браузер.");
-      if (await hash(invite) !== r.monster_invite_hash) throw new Error("Приглашение архивариуса не подходит к комнате.");
+      if (r.monster_hash) throw new Error("Роль существа уже занята. Для возвращения откройте браузер, в котором вы входили.");
+      if (await hash(invite) !== r.monster_invite_hash) throw new Error("Приглашение существа не подходит к комнате.");
       const token = random(), now = Date.now();
       const g = JSON.parse(r.state) as Game;
       start(g, now);

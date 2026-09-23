@@ -50,7 +50,7 @@ export async function GET(request: Request) {
     const g = JSON.parse(r.state) as Game;
     tick(g, now);
     const otherSeen = side === "player" ? r.monster_seen : r.player_seen;
-    return Response.json({ game: view(g, side, now, !!otherSeen && now - otherSeen < 8000) }, { headers: { "Cache-Control": "no-store" } });
+    return Response.json({ game: view(g, side, now, !!otherSeen && now - otherSeen < 8000, r.version) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return fail(error, 403); }
 }
 
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
         const g = act(JSON.parse(r.state) as Game, side, action as Record<string, unknown>, now);
         const result = await db().prepare("UPDATE rooms SET state=?,version=version+1,updated_at=? WHERE code=? AND version=?")
           .bind(JSON.stringify(g), now, roomCode, r.version).run();
-        if (result.meta.changes === 1) return Response.json({ game: view(g, side, now, true) });
+        if (result.meta.changes === 1) return Response.json({ game: view(g, side, now, true, r.version + 1) });
       }
       throw new Error("Слишком много одновременных ходов. Повторите действие.");
     }

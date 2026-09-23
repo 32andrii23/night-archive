@@ -184,12 +184,12 @@ export function act(g: Game, side: Side, action: Record<string, unknown>, now: n
   throw new Error("Недоступное действие.");
 }
 
-export function view(g: Game, side: Side, now: number, connected: boolean) {
+export function view(g: Game, side: Side, now: number, connected: boolean, version: number) {
   const playerVisible = g.player.hidden ? dist(g.monster, g.player) <= 1 :
     dist(g.monster, g.player) <= 3 || g.cameras.some(c => dist(c, g.player) <= 3 && g.lightsUntil[zone(c.x)] <= now);
   const monsterVisible = dist(g.player, g.monster) <= (g.lightsUntil[zone(g.player.x)] > now ? 2 : 4) || g.monster.stunnedUntil > now;
   const common = {
-    phase: g.phase, round: g.round, now, endsAt: g.endsAt, winner: g.winner, reason: g.reason,
+    phase: g.phase, round: g.round, now, version, endsAt: g.endsAt, winner: g.winner, reason: g.reason,
     map: MAP, power: g.power, found: g.fuses.filter(f => f.found).length, switch: g.switch, exit: g.exit,
     lockers: g.lockers, cameras: g.cameras, lightsUntil: g.lightsUntil, lockUntil: g.lockUntil,
     events: g.events.filter(e => e.until > now && (

@@ -5,7 +5,7 @@ import FirstPerson from "./first-person";
 type Pt = { x: number; y: number };
 type Ev = Pt & { id: string; type: string; at: number; until: number; variant?: number };
 type View = {
-  phase: "waiting" | "playing" | "ended"; side: "player" | "monster"; round: number; now: number; endsAt: number;
+  phase: "waiting" | "playing" | "ended"; side: "player" | "monster"; round: number; now: number; version: number; endsAt: number;
   winner: "player" | "monster" | null; reason: string; map: string[]; power: boolean; found: number;
   switch: Pt; exit: Pt; lockers: Pt[]; cameras: Pt[]; lightsUntil: number[]; lockUntil: number;
   events: Ev[]; votes: { player: boolean; monster: boolean }; otherConnected: boolean;
@@ -122,6 +122,8 @@ export default function Home() {
     if (!response.ok) throw new Error(data.error || "Архив не отвечает."); return data;
   }, []);
   const accept = useCallback((v: View) => {
+    const current = gameRef.current;
+    if (current && (v.version < current.version || (v.version === current.version && v.now < current.now))) return;
     for (const e of v.events) if (!seen.current.has(e.id)) { seen.current.add(e.id);
       if (gameRef.current) { if ((v.side === "player" || e.type !== "step") && !(reduced && ["scare", "caught"].includes(e.type))) sound.play(e.type, (e.x - v.self.x) / 6);
         if (["scare", "caught"].includes(e.type) && v.side === "player") setNote(scareWords[e.variant ?? 0]); }
@@ -177,8 +179,9 @@ export default function Home() {
   const onCell = useCallback((p: Pt) => { const g = gameRef.current; if (!g || g.phase !== "playing" || g.map[p.y]?.[p.x] !== ".") return;
     if (g.side === "monster" && tool === "knock") { void action({ type: "knock", x: p.x, y: p.y }); setTool("walk"); return; }
     if (g.self.hidden) return; queue.current = route(g.map, g.self, p).slice(0, 28);
-    const run = async () => { while (queue.current.length) { const cur = gameRef.current?.self, next = queue.current.shift(); if (!cur || !next) break;
-        if (!await action({ type: "move", dx: next.x - cur.x, dy: next.y - cur.y }, true)) break;
+    const run = async () => { let previous = { x: g.self.x, y: g.self.y }; while (queue.current.length) { const next = queue.current.shift(); if (!next || gameRef.current?.phase !== "playing") break;
+        if (!await action({ type: "move", dx: next.x - previous.x, dy: next.y - previous.y }, true)) break;
+        previous = next;
         await new Promise(r => setTimeout(r, g.side === "player" ? 200 : 330));
       } }; void run();
   }, [action, tool]);

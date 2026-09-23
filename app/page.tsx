@@ -1,6 +1,7 @@
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import FirstPerson from "./first-person";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+const ThreeFirstPerson = lazy(() => import("./three-first-person"));
 
 type Pt = { x: number; y: number };
 type Ev = Pt & { id: string; type: string; at: number; until: number; variant?: number };
@@ -172,7 +173,10 @@ export default function Home() {
   }, [request, accept, sound]);
   const move = useCallback((dx: number, dy: number) => { queue.current = []; void action({ type: "move", dx, dy }, true); }, [action]);
   const relativeMove = useCallback((offset: number) => { const a = yaw.current + offset, x = Math.cos(a), y = Math.sin(a);
-    move(Math.abs(x) >= Math.abs(y) ? Math.sign(x) : 0, Math.abs(y) > Math.abs(x) ? Math.sign(y) : 0);
+    const dx = Math.abs(x) >= Math.abs(y) ? Math.sign(x) : 0, dy = Math.abs(y) > Math.abs(x) ? Math.sign(y) : 0;
+    const g = gameRef.current;
+    if (!g || g.side !== "player" || g.phase !== "playing" || g.self.hidden || g.map[g.self.y + dy]?.[g.self.x + dx] !== ".") return;
+    move(dx, dy);
   }, [move]);
   useEffect(() => { const key = (e: KeyboardEvent) => { const g = gameRef.current; if (!g || g.phase !== "playing" || e.target instanceof HTMLInputElement) return;
       const k = e.key.toLowerCase(), dirs: Record<string, [number, number]> = { w: [0,-1], arrowup: [0,-1], s: [0,1], arrowdown: [0,1], a: [-1,0], arrowleft: [-1,0], d: [1,0], arrowright: [1,0] };
@@ -235,7 +239,7 @@ export default function Home() {
     {game && <section className="game-layout"><header className="topbar"><div className="brand"><span className="brand-mark">Н.А.</span><span>НОЧНОЙ АРХИВ <small>/ ПАРТИЯ {String(game.round).padStart(2, "0")}</small></span></div>
       <div className="top-mid"><span className={game.phase === "playing" ? "live-dot" : ""} /> {game.phase === "waiting" ? "ОЖИДАНИЕ" : game.phase === "ended" ? "ДЕЛО ЗАКРЫТО" : "АРХИВ ЗАПЕРТ"}</div><div className="top-timer">{game.phase === "playing" ? clockText(game.endsAt - clock) : "4:00"}<small>ДО РАССВЕТА</small></div></header>
       <div className="play-columns"><div className="map-column"><div className="map-heading"><div><span className="eyebrow">{isMonster ? "ПЛАН ЗДАНИЯ" : "АРХИВ · КОРИДОРЫ"} · 03:17</span><h2>{isMonster ? "Комната наблюдения" : "Не останавливайтесь"}</h2></div><span className="map-mode">{isMonster ? "АРХИВАРИУС" : "ПОСЕТИТЕЛЬ"}</span></div>
-        <div className={`board-wrap ${isMonster ? "" : "player-view"} ${game.phase !== "playing" ? "board-inactive" : ""}`}>{isMonster ? <Board game={game} onCell={onCell} reduced={reduced} /> : <><FirstPerson game={game} yaw={yaw} reduced={reduced} /><div className="view-hud"><span>{game.self.hidden ? "В УКРЫТИИ" : game.lightsUntil[game.self.x < 7 ? 0 : game.self.x < 13 ? 1 : 2] > clock ? "СВЕТ ОТКЛЮЧЁН" : "ФОНАРЬ ВКЛЮЧЁН"}</span><span>НАЖМИТЕ ДЛЯ ОБЗОРА МЫШЬЮ · ESC ОСВОБОДИТ КУРСОР</span></div><button className="plan-toggle" onClick={() => setPlan(!plan)}>{plan ? "СВЕРНУТЬ ПЛАН" : "M · ОТКРЫТЬ ПЛАН"}</button>{plan && <div className="plan-popover"><Board game={game} onCell={onCell} reduced={reduced} /><small>Нажмите на проход, чтобы проложить маршрут</small></div>}</>}
+        <div className={`board-wrap ${isMonster ? "" : "player-view"} ${game.phase !== "playing" ? "board-inactive" : ""}`}>{isMonster ? <Board game={game} onCell={onCell} reduced={reduced} /> : <><Suspense fallback={<div className="webgl-fallback" role="status">Открываем архив…</div>}><ThreeFirstPerson game={game} yaw={yaw} reduced={reduced} onTravel={relativeMove} enabled={game.phase === "playing" && !plan} /></Suspense><div className="view-hud"><span>{game.self.hidden ? "В УКРЫТИИ" : game.lightsUntil[game.self.x < 7 ? 0 : game.self.x < 13 ? 1 : 2] > clock ? "СВЕТ ОТКЛЮЧЁН" : "ФОНАРЬ ВКЛЮЧЁН"}</span><span>КЛИК — ОБЗОР МЫШЬЮ · ЗАЖМИТЕ ЛКМ — ИДТИ · ESC — КУРСОР</span></div><button className="plan-toggle" onClick={() => setPlan(!plan)}>{plan ? "СВЕРНУТЬ ПЛАН" : "M · ОТКРЫТЬ ПЛАН"}</button>{plan && <div className="plan-popover"><Board game={game} onCell={onCell} reduced={reduced} /><small>Нажмите на проход, чтобы проложить маршрут</small></div>}</>}
           {game.phase === "waiting" && <div className="board-overlay"><div className="overlay-card"><p className="eyebrow">КОМНАТА {code}</p><h3>Ожидаем архивариуса</h3><p>Скопируйте приглашение и откройте его на другом устройстве или в окне инкогнито. Одного кода комнаты недостаточно.</p>{inviteLink && <><input readOnly value={inviteLink} aria-label="Ссылка для архивариуса" onFocus={e => e.currentTarget.select()} /><button className="primary" onClick={() => copy(inviteLink, "Приглашение скопировано")}>Скопировать приглашение</button></>}</div></div>}
           {game.phase === "ended" && <div className="board-overlay"><div className="overlay-card end-card"><p className="eyebrow">ПАРТИЯ {game.round} ЗАВЕРШЕНА</p><h3>{game.winner === game.side ? "Вы победили" : "Вы проиграли"}</h3><p>{game.reason}</p><button className="primary" onClick={() => void action({ type: "rematch" })} disabled={game.votes[game.side]}>{game.votes[game.side] ? "Ждём ответ соперника" : "Предложить реванш"}</button><button className="text-button" onClick={leave}>Начать новую комнату</button>{game.votes[game.side === "player" ? "monster" : "player"] && <small>Соперник уже готов к реваншу.</small>}</div></div>}
         </div><div className="map-bottom"><span>{game.otherConnected ? "● ВТОРОЙ УЧАСТНИК НА СВЯЗИ" : game.phase === "waiting" ? "○ ПРИГЛАШЕНИЕ НЕ ОТКРЫТО" : "○ СОПЕРНИК НЕ В СЕТИ"}</span><span>{isMonster ? "КЛИК: МАРШРУТ · WASD: ШАГ" : "WASD: ДВИЖЕНИЕ · МЫШЬ / ← →: ОБЗОР · E: ДЕЙСТВИЕ"}</span></div>

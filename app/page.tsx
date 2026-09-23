@@ -20,6 +20,14 @@ const distance = (a: Pt, b: Pt) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 const clockText = (ms: number) => { const s = Math.max(0, Math.ceil(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 const message = (e: unknown) => e instanceof Error ? e.message : "Связь с архивом прервана.";
 const storageKey = (room: string) => `night-archive:${room}`;
+function parseInviteLink(input: string) {
+  try {
+    const url = new URL(input.trim());
+    if (url.origin !== location.origin) return null;
+    const match = /^([A-Z0-9]{6,8})\.([A-Za-z0-9_-]{25,100})$/.exec(url.searchParams.get("monster") ?? "");
+    return match ? { code: match[1], invite: match[2] } : null;
+  } catch { return null; }
+}
 
 function useSound() {
   const ctx = useRef<AudioContext | null>(null);
@@ -106,7 +114,7 @@ function Board({ game, onCell, reduced }: { game: View; onCell: (p: Pt) => void;
 export default function Home() {
   const [game, setGame] = useState<View | null>(null), [code, setCode] = useState(""), [token, setToken] = useState("");
   const [monsterInvite, setMonsterInvite] = useState(""), [showMonster, setShowMonster] = useState(false);
-  const [joinCode, setJoinCode] = useState(""), [joinInvite, setJoinInvite] = useState("");
+  const [joinLink, setJoinLink] = useState("");
   const [error, setError] = useState(""), [note, setNote] = useState(""), [busy, setBusy] = useState(false);
   const [clock, setClock] = useState(0), [reduced, setReduced] = useState(false), [tool, setTool] = useState<"walk" | "knock">("walk"), [plan, setPlan] = useState(false);
   const sound = useSound(), gameRef = useRef<View | null>(null), tokenRef = useRef(""), codeRef = useRef("");
@@ -134,7 +142,7 @@ export default function Home() {
   useEffect(() => { let active = true;
     queueMicrotask(() => { if (!active) return;
       const url = new URL(location.href), monster = url.searchParams.get("monster");
-      if (monster) { const dot = monster.indexOf("."); if (dot > 0) { setShowMonster(true); setJoinCode(monster.slice(0, dot)); setJoinInvite(monster.slice(dot + 1)); } history.replaceState(null, "", url.pathname); }
+      if (monster) { setShowMonster(true); setJoinLink(url.href); history.replaceState(null, "", url.pathname); }
       const resume = !monster && (url.searchParams.get("room") || localStorage.getItem("night-archive:latest"));
       if (resume) { const saved = localStorage.getItem(storageKey(resume)); if (saved) { setCode(resume); setToken(saved); setMonsterInvite(localStorage.getItem(`night-archive:invite:${resume}`) ?? ""); codeRef.current = resume; tokenRef.current = saved; } }
       setReduced(matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -153,7 +161,10 @@ export default function Home() {
     history.replaceState(null, "", `${location.pathname}?room=${encodeURIComponent(room)}`);
   }, []);
   const create = useCallback(async () => { sound.unlock(); setBusy(true); setError(""); try { const d = await request({ type: "create" }, "", ""); localStorage.setItem(`night-archive:invite:${d.code}`, d.monsterInvite); setMonsterInvite(d.monsterInvite); enter(d.code, d.token); } catch (e) { setError(message(e)); } finally { setBusy(false); } }, [request, enter, sound]);
-  const join = useCallback(async () => { sound.unlock(); setBusy(true); setError(""); try { const d = await request({ type: "join", code: joinCode.trim().toUpperCase(), invite: joinInvite.trim() }, "", ""); enter(d.code, d.token); } catch (e) { setError(message(e)); } finally { setBusy(false); } }, [request, joinCode, joinInvite, enter, sound]);
+  const join = useCallback(async () => { const ticket = parseInviteLink(joinLink);
+    if (!ticket) { setError("Нужна полная ссылка приглашения. Скопируйте её в комнате посетителя — одного кода недостаточно."); return; }
+    sound.unlock(); setBusy(true); setError(""); try { const d = await request({ type: "join", ...ticket }, "", ""); enter(d.code, d.token); } catch (e) { setError(message(e)); } finally { setBusy(false); }
+  }, [request, joinLink, enter, sound]);
   const action = useCallback(async (a: Record<string, unknown>, quiet = false) => { if (!codeRef.current || sending.current) return false; sending.current = true; sound.unlock();
     try { const d = await request({ type: "action", code: codeRef.current, action: a }); accept(d.game); if (!quiet) setError(""); return true; }
     catch (e) { if (!quiet || !["Слишком быстро.", "Здесь стена."].includes(message(e))) setError(message(e)); return false; }
@@ -216,8 +227,8 @@ export default function Home() {
       <div className="entry-content"><p className="eyebrow">ДУЭЛЬ ДЛЯ ДВОИХ · 4 МИНУТЫ</p><h1>НОЧНОЙ<br /><em>АРХИВ</em></h1>
         <p className="entry-lead">В архиве погас свет. Три предохранителя рассыпаны между стеллажами. За вами наблюдают из комнаты камер.</p>
         {!showMonster ? <div className="entry-actions"><button className="primary" disabled={busy} onClick={create}>Создать комнату <span>↗</span></button><p>Вы станете посетителем. Пригласите второго человека по секретной ссылке.</p></div>
-          : <div className="entry-actions join-form"><label>Код комнаты<input value={joinCode} onChange={e => setJoinCode(e.target.value.toUpperCase())} placeholder="7 СИМВОЛОВ" autoComplete="off" /></label>
-            <label>Ключ архивариуса<input value={joinInvite} onChange={e => setJoinInvite(e.target.value)} placeholder="ИЗ ПРИГЛАШЕНИЯ" autoComplete="off" /></label>
+          : <div className="entry-actions join-form"><label>Ссылка приглашения<input value={joinLink} onChange={e => setJoinLink(e.target.value)} placeholder="ВСТАВЬТЕ ПОЛНУЮ ССЫЛКУ" autoComplete="off" inputMode="url" /></label>
+            <p>На экране посетителя нажмите «Скопировать приглашение» и откройте ссылку здесь. Одного кода комнаты недостаточно.</p>
             <button className="primary" disabled={busy} onClick={join}>Войти в архив <span>↗</span></button><button className="text-button" onClick={() => setShowMonster(false)}>← Вернуться</button></div>}
       </div><div className="entry-footer"><span>ПОСЕТИТЕЛЬ: НАЙТИ ПИТАНИЕ И ВЫЙТИ</span><span>АРХИВАРИУС: НЕ ВЫПУСТИТЬ</span></div>
       <button className="secret" onClick={() => setShowMonster(true)} aria-label="Вход архивариуса" title="Вход архивариуса">✣</button></section>}
@@ -225,7 +236,7 @@ export default function Home() {
       <div className="top-mid"><span className={game.phase === "playing" ? "live-dot" : ""} /> {game.phase === "waiting" ? "ОЖИДАНИЕ" : game.phase === "ended" ? "ДЕЛО ЗАКРЫТО" : "АРХИВ ЗАПЕРТ"}</div><div className="top-timer">{game.phase === "playing" ? clockText(game.endsAt - clock) : "4:00"}<small>ДО РАССВЕТА</small></div></header>
       <div className="play-columns"><div className="map-column"><div className="map-heading"><div><span className="eyebrow">{isMonster ? "ПЛАН ЗДАНИЯ" : "АРХИВ · КОРИДОРЫ"} · 03:17</span><h2>{isMonster ? "Комната наблюдения" : "Не останавливайтесь"}</h2></div><span className="map-mode">{isMonster ? "АРХИВАРИУС" : "ПОСЕТИТЕЛЬ"}</span></div>
         <div className={`board-wrap ${isMonster ? "" : "player-view"} ${game.phase !== "playing" ? "board-inactive" : ""}`}>{isMonster ? <Board game={game} onCell={onCell} reduced={reduced} /> : <><FirstPerson game={game} yaw={yaw} reduced={reduced} /><div className="view-hud"><span>{game.self.hidden ? "В УКРЫТИИ" : game.lightsUntil[game.self.x < 7 ? 0 : game.self.x < 13 ? 1 : 2] > clock ? "СВЕТ ОТКЛЮЧЁН" : "ФОНАРЬ ВКЛЮЧЁН"}</span><span>НАЖМИТЕ ДЛЯ ОБЗОРА МЫШЬЮ · ESC ОСВОБОДИТ КУРСОР</span></div><button className="plan-toggle" onClick={() => setPlan(!plan)}>{plan ? "СВЕРНУТЬ ПЛАН" : "M · ОТКРЫТЬ ПЛАН"}</button>{plan && <div className="plan-popover"><Board game={game} onCell={onCell} reduced={reduced} /><small>Нажмите на проход, чтобы проложить маршрут</small></div>}</>}
-          {game.phase === "waiting" && <div className="board-overlay"><div className="overlay-card"><p className="eyebrow">КОМНАТА {code}</p><h3>Ожидаем архивариуса</h3><p>Отправьте приглашение второму человеку. Игра начнётся, когда он войдёт.</p>{inviteLink && <><input readOnly value={inviteLink} aria-label="Ссылка для архивариуса" onFocus={e => e.currentTarget.select()} /><button className="primary" onClick={() => copy(inviteLink, "Приглашение скопировано")}>Скопировать приглашение</button></>}</div></div>}
+          {game.phase === "waiting" && <div className="board-overlay"><div className="overlay-card"><p className="eyebrow">КОМНАТА {code}</p><h3>Ожидаем архивариуса</h3><p>Скопируйте приглашение и откройте его на другом устройстве или в окне инкогнито. Одного кода комнаты недостаточно.</p>{inviteLink && <><input readOnly value={inviteLink} aria-label="Ссылка для архивариуса" onFocus={e => e.currentTarget.select()} /><button className="primary" onClick={() => copy(inviteLink, "Приглашение скопировано")}>Скопировать приглашение</button></>}</div></div>}
           {game.phase === "ended" && <div className="board-overlay"><div className="overlay-card end-card"><p className="eyebrow">ПАРТИЯ {game.round} ЗАВЕРШЕНА</p><h3>{game.winner === game.side ? "Вы победили" : "Вы проиграли"}</h3><p>{game.reason}</p><button className="primary" onClick={() => void action({ type: "rematch" })} disabled={game.votes[game.side]}>{game.votes[game.side] ? "Ждём ответ соперника" : "Предложить реванш"}</button><button className="text-button" onClick={leave}>Начать новую комнату</button>{game.votes[game.side === "player" ? "monster" : "player"] && <small>Соперник уже готов к реваншу.</small>}</div></div>}
         </div><div className="map-bottom"><span>{game.otherConnected ? "● ВТОРОЙ УЧАСТНИК НА СВЯЗИ" : game.phase === "waiting" ? "○ ПРИГЛАШЕНИЕ НЕ ОТКРЫТО" : "○ СОПЕРНИК НЕ В СЕТИ"}</span><span>{isMonster ? "КЛИК: МАРШРУТ · WASD: ШАГ" : "WASD: ДВИЖЕНИЕ · МЫШЬ / ← →: ОБЗОР · E: ДЕЙСТВИЕ"}</span></div>
         <div className="touch-pad" aria-label="Управление движением">{isMonster ? <><span /><button onClick={() => move(0,-1)}>↑</button><span /><button onClick={() => move(-1,0)}>←</button><button onClick={() => move(0,1)}>↓</button><button onClick={() => move(1,0)}>→</button></> : <><span /><button onClick={() => relativeMove(0)}>↑</button><span /><button onClick={() => { yaw.current -= .3; }}>↶</button><button onClick={() => relativeMove(Math.PI)}>↓</button><button onClick={() => { yaw.current += .3; }}>↷</button></>}</div></div>

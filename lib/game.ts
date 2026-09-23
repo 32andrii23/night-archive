@@ -508,7 +508,7 @@ export function view(g: Game, side: Side, now: number, connected: boolean, versi
   const common = {
     phase: g.phase, side, round: g.round, now, version,
     startedAt: g.startedAt, introEndsAt: g.introEndsAt, endsAt: g.endsAt, endedAt: g.endedAt,
-    winner: g.winner, reason: g.reason, hostSide: g.hostSide, names: g.names,
+    winner: g.winner, reason: g.reason, names: g.names,
     power: g.power, powerAt: g.powerAt, lightsUntil: g.lightsUntil, lockUntil: g.lockUntil, flickerUntil: g.flickerUntil,
     found: g.clues.filter(c => c.found).length, total: g.clues.length,
     stories: g.clues.filter(c => c.found).map(c => c.story),

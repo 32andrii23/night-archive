@@ -46,7 +46,6 @@ export type GameView = {
   endedAt: number;
   winner: Side | null;
   reason: string;
-  hostSide: Side;
   names: { player: string; monster: string };
   power: boolean;
   powerAt: number;

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import type { Side } from "../game-types";
 
-export type Peek = { code: string; invite: string; host: string; side: Side } | null;
+export type Peek = { code: string; invite: string; host: string } | null;
 
 function Backdrop() {
   return <div className="hospital-entry-sky" aria-hidden="true">
@@ -19,7 +19,7 @@ function Backdrop() {
 }
 
 export function Landing(props: {
-  name: string; setName: (v: string) => void; side: Side; setSide: (s: Side) => void;
+  name: string; setName: (v: string) => void;
   busy: boolean; onCreate: () => void; joining: boolean; setJoining: (v: boolean) => void;
   joinLink: string; setJoinLink: (v: string) => void; onJoinLink: () => void;
 }) {
@@ -30,17 +30,9 @@ export function Landing(props: {
       <p className="hospital-kicker">ПОСЛЕДНИЙ ВЫЗОВ · ПСИХОНЕВРОЛОГИЧЕСКИЙ ДИСПАНСЕР</p>
       <h1 data-text="ТИХИЙ">ТИХИЙ<br /><em>КОРПУС</em></h1>
       {!props.joining ? <>
-        <p className="hospital-lead">Двое приезжают ночью к закрытому корпусу. Один ищет истории пациентов и путь наружу. Второй с самого начала знает, чем закончится эта ночь.</p>
+        <p className="hospital-lead">Вы с другом приезжаете ночью к закрытому корпусу. Найдите истории пациентов, включите аварийное питание и выберитесь до рассвета.</p>
         <TouchWarning />
         <label className="hospital-field">ТВОЁ ИМЯ<input value={props.name} maxLength={16} onChange={e => props.setName(e.target.value)} placeholder="Например, Андрей" autoComplete="nickname" /></label>
-        <div className="hospital-roles" role="radiogroup" aria-label="Твоя роль">
-          <button role="radio" aria-checked={props.side === "monster"} className={props.side === "monster" ? "active" : ""} onClick={() => props.setSide("monster")}>
-            <b>СУЩЕСТВО</b><span>Второй игрок думает, что вы исследуете корпус вдвоём. Выгляди как спутник, пугай, путай и раскройся в худший момент.</span>
-          </button>
-          <button role="radio" aria-checked={props.side === "player"} className={props.side === "player" ? "active" : ""} onClick={() => props.setSide("player")}>
-            <b>ПОСЕТИТЕЛЬ</b><span>Найди четыре истории пациентов, запусти щиток на посту охраны и выберись. Держись рядом со спутником… если это спутник.</span>
-          </button>
-        </div>
         <div className="hospital-entry-actions">
           <button className="hospital-primary" disabled={props.busy} onClick={props.onCreate}>Создать комнату <span>↗</span></button>
           <button className="hospital-plain" onClick={() => props.setJoining(true)}>У меня есть ссылка-приглашение</button>
@@ -63,33 +55,24 @@ function TouchWarning() {
 }
 
 export function InviteScreen({ peek, name, setName, busy, onJoin, onBack }: { peek: Peek; name: string; setName: (v: string) => void; busy: boolean; onJoin: () => void; onBack: () => void }) {
-  const monster = peek?.side === "monster";
   return <section className="hospital-entry invite">
     <Backdrop />
     <div className="hospital-entry-top"><span>ПРИГЛАШЕНИЕ · КОМНАТА {peek?.code ?? "…"}</span><span>НАУШНИКИ ОБЯЗАТЕЛЬНЫ</span></div>
     <div className="hospital-entry-main">
       <p className="hospital-kicker">{peek ? `${peek.host.toUpperCase()} ЗОВЁТ ТЕБЯ` : "ОТКРЫВАЕМ ПРИГЛАШЕНИЕ…"}</p>
       <h1>ТИХИЙ<br /><em>КОРПУС</em></h1>
-      {peek && (monster
-        ? <p className="hospital-lead">Ты будешь существом. Второй игрок думает, что вы приехали исследовать корпус вдвоём. Прикидывайся спутником, пугай и лови, пока добыча не сбежала.</p>
-        : <p className="hospital-lead">Ночью вы вдвоём едете к закрытому корпусу психбольницы. Найдите четыре истории пациентов, запустите щиток на посту охраны и выберитесь до конца смены. Говорят, внутри кто-то остался.</p>)}
+      {peek && <p className="hospital-lead">Ночью вы вдвоём едете к закрытому корпусу психбольницы. Найдите четыре истории пациентов, запустите щиток на посту охраны и выберитесь до конца смены. Говорят, внутри кто-то остался.</p>}
       {peek && <>
         <TouchWarning />
         <label className="hospital-field">ТВОЁ ИМЯ<input value={name} maxLength={16} onChange={e => setName(e.target.value)} placeholder="Как тебя зовут?" autoComplete="nickname" /></label>
         <div className="hospital-entry-actions">
-          <button className="hospital-primary" disabled={busy} onClick={onJoin}>{monster ? "Войти существом" : "Сесть в машину"} <span>↗</span></button>
+          <button className="hospital-primary" disabled={busy} onClick={onJoin}>Сесть в машину <span>↗</span></button>
           <button className="hospital-plain" onClick={onBack}>На главную</button>
         </div>
         <ul className="hospital-howto">
-          {monster ? <>
-            <li><b>G</b> сменить облик · <b>ЛКМ</b> бросок</li>
-            <li><b>1–0</b> розыгрыши · <b>R</b> рация · <b>T</b> надпись</li>
-            <li><b>TAB</b> все приёмы и настройки</li>
-          </> : <>
-            <li><b>WASD</b> идти · <b>SHIFT</b> бежать · <b>C</b> присесть</li>
-            <li><b>E</b> действие · <b>F</b> фонарь · <b>Q</b> вспышка</li>
-            <li><b>TAB</b> дело и настройки</li>
-          </>}
+          <li><b>WASD</b> идти · <b>SHIFT</b> бежать · <b>C</b> присесть</li>
+          <li><b>E</b> действие · <b>F</b> фонарь · <b>Q</b> вспышка</li>
+          <li><b>TAB</b> дело и настройки</li>
         </ul>
       </>}
     </div>

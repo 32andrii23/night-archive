@@ -13,8 +13,8 @@ async function read(code, token) {
 const action = (code, type, input = {}) => ({ type: "action", code, action: { type, ...input } });
 const move = (code, input) => ({ type: "move", code, move: input });
 
-// The host picks the creature; the invite makes the guest the visitor.
-const created = await call({ type: "create", side: "monster", name: "Андрей" });
+// The host becomes the creature; the invite does not reveal either role.
+const created = await call({ type: "create", name: "Андрей" });
 assert.equal(created.status, 201);
 const { code, token: monsterToken, invite } = created.data;
 assert.equal(created.data.side, "monster");
@@ -22,7 +22,7 @@ assert.match(code, /^[A-Z0-9]{7}$/);
 assert.equal((await read(code)).status, 403);
 const peek = await call({ type: "peek", code, invite });
 assert.equal(peek.status, 200);
-assert.deepEqual({ host: peek.data.host, side: peek.data.side }, { host: "Андрей", side: "player" });
+assert.deepEqual(peek.data, { code, host: "Андрей" });
 assert.equal((await call({ type: "join", code, invite: "x".repeat(32) })).status, 400);
 const joined = await call({ type: "join", code, invite, name: "Макс" });
 assert.equal(joined.status, 200);
@@ -36,7 +36,7 @@ const monsterIntro = (await read(code, monsterToken)).data.game;
 assert.equal(playerIntro.phase, "intro");
 assert.equal(playerIntro.side, "player");
 assert.equal(monsterIntro.side, "monster");
-assert.equal(playerIntro.hostSide, "monster");
+assert.equal("hostSide" in playerIntro, false, "the visitor never receives the host's role");
 assert.deepEqual(playerIntro.names, { monster: "Андрей", player: "Макс" });
 assert.equal(playerIntro.total, 4);
 assert.equal("map" in playerIntro, false, "the map ships with the client, not every poll");
@@ -106,4 +106,4 @@ assert.equal(revealed.status, 200, JSON.stringify(revealed.data));
 assert.equal(revealed.data.game.self.disguised, false);
 assert.equal((await call(action(code, "disguise"), monsterToken)).status, 400, "the form needs time to settle");
 
-console.log("PASS: host picks creature, neutral invite, arrival lock, allowance-limited client movement, walls, separation teleport, contention-free moves, radio, blood writing, flare, reveal cooldown");
+console.log("PASS: host secretly becomes creature, neutral invite, arrival lock, allowance-limited client movement, walls, separation teleport, contention-free moves, radio, blood writing, flare, reveal cooldown");

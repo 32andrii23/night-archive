@@ -52,7 +52,6 @@ export default function Home() {
   const [token, setToken] = useState("");
   const [invite, setInvite] = useState("");
   const [name, setNameState] = useState("");
-  const [chosenSide, setChosenSide] = useState<Side>("monster");
   const [joinLink, setJoinLink] = useState("");
   const [joining, setJoining] = useState(false);
   const [peek, setPeek] = useState<Peek>(null);
@@ -171,7 +170,7 @@ export default function Home() {
         setPeeking(true);
         void request({ type: "peek", ...ticket }, "", "").then(data => {
           if (!mounted) return;
-          setPeek({ code: ticket.code, invite: ticket.invite, host: data.host ?? "Друг", side: data.side ?? "player" });
+          setPeek({ code: ticket.code, invite: ticket.invite, host: data.host ?? "Друг" });
         }).catch(cause => {
           setError(errorText(cause)); setPeeking(false);
           // The seat may already belong to this browser.
@@ -253,20 +252,20 @@ export default function Home() {
   const create = useCallback(async () => {
     audio.unlock(); setBusy(true); setError(""); goFullscreen();
     try {
-      const data = await request({ type: "create", side: chosenSide, name }, "", "");
+      const data = await request({ type: "create", name }, "", "");
       if (!data.code || !data.token || !data.invite) throw new Error("Не удалось создать комнату.");
       localStorage.setItem(`night-archive:invite:${data.code}`, data.invite);
-      setInvite(data.invite); enter(data.code, data.token, data.side ?? chosenSide);
+      setInvite(data.invite); enter(data.code, data.token, data.side ?? "monster");
     } catch (cause) { setError(errorText(cause)); }
     finally { setBusy(false); }
-  }, [audio, request, enter, chosenSide, name]);
+  }, [audio, request, enter, name]);
   const join = useCallback(async () => {
     if (!peek) return;
     audio.unlock(); setBusy(true); setError(""); goFullscreen();
     try {
       const data = await request({ type: "join", code: peek.code, invite: peek.invite, name }, "", "");
       if (!data.code || !data.token) throw new Error("Не удалось войти.");
-      enter(data.code, data.token, data.side ?? peek.side);
+      enter(data.code, data.token, data.side ?? "player");
     } catch (cause) { setError(errorText(cause)); }
     finally { setBusy(false); }
   }, [peek, audio, request, enter, name]);
@@ -276,7 +275,7 @@ export default function Home() {
     setBusy(true);
     try {
       const data = await request({ type: "peek", ...ticket }, "", "");
-      setPeek({ ...ticket, host: data.host ?? "Друг", side: data.side ?? "player" }); setPeeking(true); setJoining(false);
+      setPeek({ ...ticket, host: data.host ?? "Друг" }); setPeeking(true); setJoining(false);
     } catch (cause) { setError(errorText(cause)); }
     finally { setBusy(false); }
   }, [joinLink, request]);
@@ -382,8 +381,8 @@ export default function Home() {
     if (!context?.registerTool) return;
     const lifecycle = new AbortController();
     const register = (tool: Tool) => { void Promise.resolve(context.registerTool(tool, { signal: lifecycle.signal })).catch(() => {}); };
-    register({ name: "create_hospital_room", title: "Создать комнату", description: "Создать партию. side: monster или player — роль создателя.", inputSchema: { type: "object", properties: { side: { type: "string", enum: ["monster", "player"] }, name: { type: "string" } }, additionalProperties: false }, annotations: { readOnlyHint: false },
-      async execute(value) { const v = (value ?? {}) as { side?: Side; name?: string }; const data = await request({ type: "create", side: v.side ?? "monster", name: v.name ?? "" }, "", ""); if (!data.code || !data.token || !data.invite) throw new Error("Не удалось создать комнату."); localStorage.setItem(`night-archive:invite:${data.code}`, data.invite); setInvite(data.invite); enter(data.code, data.token, data.side ?? "monster"); return { code: data.code, inviteUrl: `${location.origin}${location.pathname}?join=${data.code}.${data.invite}` }; } });
+    register({ name: "create_hospital_room", title: "Создать комнату", description: "Создать совместную партию.", inputSchema: { type: "object", properties: { name: { type: "string" } }, additionalProperties: false }, annotations: { readOnlyHint: false },
+      async execute(value) { const v = (value ?? {}) as { name?: string }; const data = await request({ type: "create", name: v.name ?? "" }, "", ""); if (!data.code || !data.token || !data.invite) throw new Error("Не удалось создать комнату."); localStorage.setItem(`night-archive:invite:${data.code}`, data.invite); setInvite(data.invite); enter(data.code, data.token, data.side ?? "monster"); return { code: data.code, inviteUrl: `${location.origin}${location.pathname}?join=${data.code}.${data.invite}` }; } });
     register({ name: "perform_hospital_action", title: "Сделать действие", description: "Выполнить действие текущей роли с проверкой сервером.", inputSchema: { type: "object", properties: { type: { type: "string" }, text: { type: "string" } }, required: ["type"], additionalProperties: true }, annotations: { readOnlyHint: false },
       async execute(value) { const data = value as Record<string, unknown>; if (!codeRef.current || !tokenRef.current) throw new Error("Сначала войдите в комнату."); const result = await request({ type: "action", code: codeRef.current, action: data }); if (result.game) accept(result.game); return { phase: result.game?.phase, found: result.game?.found }; } });
     return () => lifecycle.abort();
@@ -430,7 +429,7 @@ export default function Home() {
   return <main className={`hospital-app ${screamer ? "shaking" : ""}`} onPointerDown={() => audio.unlock()}>
     {!game && !code && (peek || peeking
       ? <InviteScreen peek={peek} name={name} setName={setName} busy={busy} onJoin={() => void join()} onBack={() => { setPeek(null); setPeeking(false); }} />
-      : <Landing name={name} setName={setName} side={chosenSide} setSide={setChosenSide} busy={busy} onCreate={() => void create()}
+      : <Landing name={name} setName={setName} busy={busy} onCreate={() => void create()}
         joining={joining} setJoining={setJoining} joinLink={joinLink} setJoinLink={setJoinLink} onJoinLink={() => void openLink()} />)}
     {!game && code && <div className="hospital-loading">Открываем корпус…</div>}
 

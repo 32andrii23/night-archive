@@ -141,7 +141,7 @@ export async function POST(request: Request) {
       if (r.guest_hash) throw new Error("В эту комнату уже вошли. Вернуться можно из того же браузера.");
       const g = hydrate(r);
       const guestSide = other(g.hostSide);
-      if (type === "peek") return Response.json({ code, host: g.names[g.hostSide], side: guestSide });
+      if (type === "peek") return Response.json({ code, host: g.names[g.hostSide] });
       const token = random(), now = Date.now();
       g.names[guestSide] = cleanName(body.name, guestSide === "player" ? "Гость" : "Друг");
       start(g, now);

@@ -214,8 +214,23 @@ export default function Home() {
         failures = 0;
         if (active && data.game) accept(data.game);
       } catch (cause) {
+        const message = errorText(cause);
+        if (active && ["Комната не найдена.", "Нет доступа к этой роли.", "Неверный код комнаты.", "Сохранённый доступ не найден. Откройте своё приглашение."].includes(message)) {
+          try {
+            localStorage.removeItem(seatKey(code, "player"));
+            localStorage.removeItem(seatKey(code, "monster"));
+            localStorage.removeItem(`night-archive:invite:${code}`);
+            if (localStorage.getItem("night-archive:latest") === code) localStorage.removeItem("night-archive:latest");
+            sessionStorage.removeItem(tabSideKey(code));
+          } catch { /* storage blocked */ }
+          history.replaceState(null, "", location.pathname);
+          codeRef.current = ""; tokenRef.current = ""; gameRef.current = null;
+          setCode(""); setToken(""); setGame(null);
+          setError("Старая комната больше недоступна. Создайте новую партию.");
+          return;
+        }
         failures++;
-        if (active && failures > 2) setError(errorText(cause));
+        if (active && failures > 2) setError(message);
       }
       const live = ["playing", "intro"].includes(gameRef.current?.phase ?? "");
       if (active) timeout = window.setTimeout(poll, live ? 240 : 900);

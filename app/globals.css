@@ -1,120 +1,306 @@
 @import "tailwindcss";
 
-:root{color-scheme:dark;background:#070d0f;color:#e8e5d7;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace}
-*{box-sizing:border-box}
-html,body{margin:0;min-height:100%;overflow:hidden}
-button,input{font:inherit}
-button{cursor:pointer}
-button:disabled{opacity:.45;cursor:not-allowed}
-button:focus-visible,input:focus-visible{outline:2px solid #e1c390;outline-offset:3px}
-.hospital-app{position:fixed;inset:0;width:100vw;height:100dvh;overflow:hidden;background:#070d0f}
-.hospital-kicker{font-size:11px;font-weight:700;letter-spacing:.22em;color:#d2b984;margin:0 0 15px}
-.hospital-primary{border:1px solid #e0c99b;background:#d0af79;color:#15191a;padding:16px 19px;font-size:13px;font-weight:800;letter-spacing:.07em;min-height:54px;display:flex;align-items:center;justify-content:space-between;gap:30px}
-.hospital-primary:hover:not(:disabled){background:#e9c995}
-.hospital-primary span{font-size:22px}
-.hospital-plain{border:0;background:transparent;color:#cfcebf;padding:8px 0;text-align:left;font-size:12px;letter-spacing:.07em}
-.hospital-plain:hover{text-decoration:underline}
+:root {
+  color-scheme: dark;
+  --bg: #050809;
+  --ink: #ebe6d6;
+  --muted: #9fa89c;
+  --amber: #d6b27a;
+  --amber-hi: #f0cf98;
+  --blood: #b3261e;
+  --blood-hi: #e2483c;
+  --panel: #0f1918ee;
+  --line: #a9b3a13d;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  --display: Impact, "Haettenschweiler", "Arial Narrow Bold", "Arial Narrow", sans-serif;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--mono);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; overflow: hidden; background: var(--bg); }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { opacity: .42; cursor: not-allowed; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--amber-hi); outline-offset: 3px; }
+kbd { font-family: var(--mono); font-size: .92em; border: 1px solid #b9ae8d80; border-bottom-width: 2px; padding: 1px 5px; border-radius: 3px; background: #0006; color: var(--amber-hi); }
 
-/* Arrival screen */
-.hospital-entry{position:relative;isolation:isolate;display:grid;grid-template-rows:auto 1fr auto;width:100%;height:100%;padding:clamp(20px,3.4vw,46px);background:radial-gradient(circle at 69% 30%,#2b3b39 0%,#151f20 27%,#091113 67%,#050a0b 100%)}
-.hospital-entry:after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(90deg,#071012 0%,#071012e8 25%,transparent 68%),linear-gradient(0deg,#050a0b 0%,transparent 40%)}
-.hospital-entry-sky{position:absolute;inset:0;overflow:hidden;z-index:-2;pointer-events:none}
-.hospital-building{position:absolute;left:37%;right:3%;top:14%;bottom:15%;transform:perspective(700px) rotateY(-9deg);background:repeating-linear-gradient(90deg,#25312e 0 12%,#1a2423 12.4% 13%,#303a34 13.2% 25%),linear-gradient(#4d5547,#1d2725);box-shadow:inset 0 0 100px #071112,0 0 130px #0009;border-top:15px solid #373f38}
-.hospital-building:before{content:"";position:absolute;inset:11% 4% 16%;background:repeating-linear-gradient(90deg,transparent 0 8%,#071213 8.2% 11%,#8d775016 11.5% 11.8%,transparent 12% 20%),repeating-linear-gradient(0deg,transparent 0 19%,#65726a55 19.2% 20%,transparent 20.2% 40%);opacity:.8}
-.hospital-building:after{content:"";position:absolute;bottom:-8%;left:43%;width:15%;height:31%;background:#0a1314;border:9px solid #586052}
-.hospital-car{position:absolute;right:20%;bottom:9%;width:210px;height:80px;border-radius:50% 38% 13% 13%;background:#151e1f;box-shadow:0 7px 20px #000,0 0 80px #c5bb7270}
-.hospital-car:before,.hospital-car:after{content:"";position:absolute;bottom:-13px;width:36px;height:36px;border-radius:50%;background:#030708;border:5px solid #2d3330}
-.hospital-car:before{left:26px}.hospital-car:after{right:26px}
-.hospital-entry-top,.hospital-entry-bottom{display:flex;justify-content:space-between;gap:20px;color:#a8b1a6;font-size:10px;font-weight:700;letter-spacing:.19em;position:relative;z-index:2}
-.hospital-entry-bottom{padding-top:15px;border-top:1px solid #9eaa9b4a}
-.hospital-entry-main{align-self:center;position:relative;z-index:2;width:min(590px,100%);padding-bottom:45px}
-.hospital-entry h1{font-family:Impact,"Arial Narrow",sans-serif;font-weight:900;font-size:clamp(84px,11vw,176px);line-height:.78;letter-spacing:.025em;margin:25px 0 35px;color:#f0eee1;text-shadow:0 15px 30px #000b}
-.hospital-entry h1 em{font-style:normal;color:#bb9f76}
-.hospital-lead{max-width:520px;color:#b9c1b5;line-height:1.6;font-size:clamp(14px,1.4vw,18px)}
-.hospital-entry-actions{display:flex;flex-direction:column;align-items:start;gap:13px;margin-top:31px}
-.hospital-entry-actions .hospital-primary{width:min(390px,100%)}
-.hospital-join{display:grid;gap:12px;max-width:550px;margin-top:22px}
-.hospital-join label{font-size:11px;color:#b5bdad;letter-spacing:.13em}
-.hospital-join input,.hospital-modal input{width:100%;display:block;margin-top:9px;border:1px solid #728178;background:#0a1515;color:#eee9d5;padding:15px;outline:none;font-size:12px}
-.hospital-join .hospital-primary{width:100%}
+.hospital-app { position: fixed; inset: 0; width: 100vw; height: 100dvh; overflow: hidden; background: var(--bg); }
+.hospital-app.shaking .hospital-game { animation: hospital-shake .09s linear infinite; }
+.hospital-kicker { font-size: 11px; font-weight: 700; letter-spacing: .22em; color: var(--amber); margin: 0 0 14px; }
+.hospital-primary { border: 1px solid #e6cf9f; background: linear-gradient(180deg, #dcbb85, #c39e66); color: #14191a; padding: 15px 19px; font-size: 13px; font-weight: 800; letter-spacing: .07em; min-height: 52px; display: flex; align-items: center; justify-content: space-between; gap: 26px; box-shadow: 0 10px 30px #0008, inset 0 1px #fff6; transition: filter .15s, transform .15s; }
+.hospital-primary:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
+.hospital-primary span { font-size: 20px; }
+.hospital-secondary { border: 1px solid #c9b58a80; background: #1b2724; color: var(--ink); padding: 13px 16px; font-size: 12px; font-weight: 700; letter-spacing: .06em; min-height: 48px; }
+.hospital-secondary:hover:not(:disabled) { background: #26352f; }
+.hospital-plain { border: 0; background: transparent; color: #cfcebf; padding: 8px 0; text-align: left; font-size: 12px; letter-spacing: .07em; }
+.hospital-plain:hover { text-decoration: underline; color: var(--amber-hi); }
 
-/* The room itself occupies the entire browser viewport. */
-.hospital-game{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;background:#0b1415}
-.hospital-canvas{position:absolute;inset:0;display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
-.hospital-vignette{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at center,transparent 32%,#03070761 76%,#010404ce 100%);z-index:1}
-.hospital-reticle{position:absolute;left:50%;top:50%;width:7px;height:7px;border:1px solid #ede4c4ad;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 12px #e7d7a773;pointer-events:none;z-index:2}
-.hospital-interaction{position:absolute;left:50%;top:calc(50% + 21px);transform:translateX(-50%);z-index:3;border:1px solid #c2b68b8c;background:#0b1919df;padding:8px 11px;color:#ebdfb8;font-size:10px;font-weight:800;letter-spacing:.09em;white-space:nowrap;pointer-events:none;text-shadow:0 2px 8px #000}
-.hospital-hud{position:absolute;top:0;left:0;right:0;padding:18px clamp(14px,2vw,28px);z-index:4;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;pointer-events:none}
-.hospital-hud-left,.hospital-hud-right{display:flex;align-items:flex-start;gap:12px;pointer-events:auto}
-.hospital-hud-button,.hospital-icon-button{border:1px solid #aeb9a184;background:#101d1dda;color:#e9e2c9;min-height:42px;padding:0 13px;font-size:11px;font-weight:800;letter-spacing:.1em;backdrop-filter:blur(8px)}
-.hospital-hud-button span{color:#c7b483;margin-left:9px}
-.hospital-icon-button{font-size:20px;min-width:42px}
-.hospital-hud-objective{display:flex;flex-direction:column;padding:6px 10px;background:#0c1818a3;text-shadow:0 2px 7px #000}
-.hospital-hud-objective strong{font-size:12px;letter-spacing:.13em}
-.hospital-hud-objective small{font-size:10px;color:#b3bfb2;margin-top:4px}
-.hospital-timer{font-size:32px;font-weight:800;line-height:1;padding:4px 6px;text-shadow:0 3px 13px #000}
-.hospital-pip-label{position:absolute;right:max(14px,1.8vw);top:calc(62px + max(14px,1.8vw));width:min(27vw,390px);aspect-ratio:1.613;z-index:4;border:2px solid #c5b083;background:transparent;box-shadow:0 12px 35px #000b,inset 0 0 35px #0006;text-align:left;padding:6px;color:#f0dfb7;display:flex;align-items:start;justify-content:space-between;pointer-events:auto}
-.hospital-pip-label.large{width:min(46vw,680px)}
-.hospital-pip-label span,.hospital-pip-label small{background:#0b1717e8;padding:5px;font-size:9px;letter-spacing:.11em}
-.hospital-bottom-hint{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);z-index:3;padding:9px 12px;background:#0b1718a6;border:1px solid #72827958;color:#d4d6c8;font-size:10px;letter-spacing:.06em;white-space:nowrap;text-align:center;pointer-events:none}
-.hospital-intro-caption{position:absolute;bottom:14%;left:clamp(20px,7vw,115px);max-width:520px;z-index:3;text-shadow:0 4px 18px #000;pointer-events:none}
-.hospital-intro-caption span{color:#d8b982;font-size:11px;letter-spacing:.22em}
-.hospital-intro-caption h2{font-family:Impact,"Arial Narrow",sans-serif;font-size:clamp(37px,5vw,72px);font-weight:800;letter-spacing:.02em;line-height:1;margin:10px 0}
-.hospital-intro-caption p{font-size:13px;line-height:1.55;color:#e4e4d9;max-width:440px}
-.hospital-cinematic-cut{position:absolute;inset:0;z-index:8;display:grid;place-items:center;background:#020606ee;color:#d4c39c;font-size:11px;font-weight:800;letter-spacing:.25em;pointer-events:none;text-align:center;padding:20px}
-.hospital-loading,.hospital-webgl-error{position:absolute;inset:0;display:grid;place-items:center;background:#111b1c;color:#e1d2ae;z-index:2}
-.hospital-drag-tip{position:absolute;bottom:58px;left:50%;transform:translateX(-50%);z-index:5;width:min(620px,92vw);padding:10px 12px;background:#102021ee;border:1px solid #c7b7897a;font-size:11px;text-align:center;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:9px 14px;box-shadow:0 10px 28px #0009}
-.hospital-drag-tip span{width:100%;color:#efe6d1}
-.hospital-drag-tip button{border:1px solid #9d9776;background:#263633;color:#f2dfb5;font-size:10px;font-weight:800;letter-spacing:.07em;padding:9px 11px}
-.hospital-drag-tip button:hover{background:#34483f}
+/* ------------------------------ Entry screens ------------------------------ */
+.hospital-entry { position: relative; isolation: isolate; display: grid; grid-template-rows: auto 1fr auto; width: 100%; height: 100%; padding: clamp(18px, 3.2vw, 46px); background: radial-gradient(ellipse at 72% 28%, #1f2d2e 0%, #0f1819 34%, #070c0d 70%, #030607 100%); overflow: hidden; }
+.hospital-entry:after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; background: linear-gradient(90deg, #050a0bf2 0%, #050a0bd0 30%, transparent 70%), linear-gradient(0deg, #030607 0%, transparent 38%); }
+.hospital-entry-sky { position: absolute; inset: 0; overflow: hidden; z-index: -2; pointer-events: none; }
+.hospital-moon { position: absolute; right: 16%; top: 9%; width: 70px; height: 70px; border-radius: 50%; background: radial-gradient(circle at 40% 38%, #eef0e6, #b9beb2 60%, #7c8378); box-shadow: 0 0 60px 20px #9fb4b82e, 0 0 180px 60px #7d97a01c; opacity: .8; }
+.hospital-building { position: absolute; left: 40%; right: 4%; top: 22%; bottom: 17%; display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(2, 1fr); gap: 8% 5%; padding: 7% 5% 12%; background: linear-gradient(180deg, #2a302b 0%, #1a201e 60%, #121716 100%); border-top: 14px solid #353b35; box-shadow: inset 0 0 120px #050909, 0 0 140px #000a; transform: perspective(900px) rotateY(-8deg); }
+.hospital-building:before { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, transparent 0 13px, #0000001c 13px 14px), repeating-linear-gradient(90deg, transparent 0 38px, #00000014 38px 40px); }
+.hospital-building b { position: relative; background: linear-gradient(180deg, #0c1214, #070b0c); border: 3px solid #3a3e37; box-shadow: inset 0 0 12px #000; }
+.hospital-building b:after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent 47%, #2e312c 47% 53%, transparent 53%), linear-gradient(0deg, transparent 47%, #2e312c 47% 53%, transparent 53%); }
+.hospital-building b.lit { background: radial-gradient(circle at 50% 60%, #6b5530, #221a0d); }
+.hospital-building b.lit:before { content: ""; position: absolute; left: 36%; bottom: 0; width: 28%; height: 72%; background: #050303; border-radius: 45% 45% 0 0; z-index: 1; animation: hospital-figure 9s infinite; }
+.hospital-building b.flicker { animation: hospital-window 3.7s infinite; }
+.hospital-building em { position: absolute; left: 50%; top: -1px; transform: translate(-50%, -100%); font-style: normal; font-family: var(--display); letter-spacing: .12em; font-size: clamp(12px, 1.4vw, 20px); color: #a8483a; background: #151a19; padding: 4px 14px; border: 2px solid #2d322d; }
+.hospital-fog { position: absolute; left: -20%; right: -20%; bottom: 4%; height: 36%; background: radial-gradient(ellipse at 30% 60%, #8fa3a522, transparent 60%), radial-gradient(ellipse at 70% 40%, #8fa3a51a, transparent 55%); filter: blur(10px); animation: hospital-fog 26s linear infinite alternate; }
+.hospital-car { position: absolute; right: 21%; bottom: 10%; width: 200px; height: 58px; background: linear-gradient(180deg, #1c2524, #0c1111); border-radius: 40% 36% 10% 10% / 70% 60% 20% 20%; box-shadow: 0 12px 24px #000; }
+.hospital-car s { position: absolute; left: -2px; top: 42%; width: 16px; height: 8px; background: #ffeec2; border-radius: 3px; box-shadow: -40px 0 90px 30px #ffe9b02a, -120px 10px 160px 60px #ffe9b012; }
+.hospital-car:before, .hospital-car:after { content: ""; position: absolute; bottom: -12px; width: 32px; height: 32px; border-radius: 50%; background: #030607; border: 5px solid #232926; }
+.hospital-car:before { left: 26px; } .hospital-car:after { right: 26px; }
+.hospital-trees { position: absolute; left: 30%; right: 0; bottom: 14%; height: 44%; background: radial-gradient(ellipse at 10% 100%, #050808 0 18%, transparent 19%), radial-gradient(ellipse at 96% 100%, #050808 0 22%, transparent 23%); opacity: .9; }
+.hospital-entry-top, .hospital-entry-bottom { display: flex; justify-content: space-between; gap: 20px; color: #a8b1a6; font-size: 10px; font-weight: 700; letter-spacing: .19em; position: relative; z-index: 2; }
+.hospital-entry-bottom { padding-top: 14px; border-top: 1px solid #9eaa9b3d; }
+.hospital-entry-main { align-self: center; position: relative; z-index: 2; width: min(600px, 100%); padding: 10px 0 30px; max-height: 100%; overflow-y: auto; scrollbar-width: none; }
+.hospital-entry h1 { position: relative; font-family: var(--display); font-weight: 900; font-size: clamp(74px, 10.5vw, 168px); line-height: .8; letter-spacing: .02em; margin: 18px 0 26px; color: #f0ede0; text-shadow: 0 16px 36px #000c; }
+.hospital-entry h1 em { font-style: normal; color: #bd9f74; }
+.hospital-entry h1:before { content: attr(data-text); position: absolute; left: 3px; top: 0; color: #b3261e; opacity: 0; clip-path: inset(10% 0 55% 0); animation: hospital-title-glitch 7s infinite steps(1); }
+.hospital-lead { max-width: 530px; color: #b9c1b5; line-height: 1.6; font-size: clamp(13px, 1.3vw, 16px); margin: 0 0 20px; }
+.hospital-field { display: grid; gap: 8px; font-size: 10px; letter-spacing: .18em; color: #aeb7a7; margin-bottom: 14px; max-width: 460px; }
+.hospital-field input, .hospital-modal input, .hospital-text-trick input { width: 100%; border: 1px solid #71807680; background: #081213d0; color: #eee9d5; padding: 13px 14px; outline: none; font-size: 13px; letter-spacing: .02em; }
+.hospital-field input:focus, .hospital-text-trick input:focus { border-color: var(--amber); }
+.hospital-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 18px; }
+.hospital-roles button { text-align: left; border: 1px solid #6b776d70; background: #0b1515c8; padding: 14px 14px 15px; display: grid; gap: 7px; transition: border-color .15s, background .15s; }
+.hospital-roles button b { font-size: 12px; letter-spacing: .18em; color: #e9e2cb; }
+.hospital-roles button span { font-size: 11px; line-height: 1.55; color: #9fab9e; }
+.hospital-roles button:hover { border-color: #c5ae80; }
+.hospital-roles button.active { border-color: var(--amber); background: linear-gradient(180deg, #2a2418d8, #141813d8); box-shadow: inset 0 0 0 1px #d6b27a55, 0 10px 30px #0007; }
+.hospital-roles button.active b { color: var(--amber-hi); }
+.hospital-entry-actions { display: flex; flex-direction: column; align-items: start; gap: 10px; margin-top: 8px; }
+.hospital-entry-actions .hospital-primary { width: min(400px, 100%); }
+.hospital-join { display: grid; gap: 12px; max-width: 560px; margin-top: 12px; }
+.hospital-join .hospital-primary { width: 100%; }
+.hospital-touch-warning { max-width: 460px; margin: 0 0 16px; padding: 10px 12px; border: 1px solid #b3261e90; background: #2a0f0cd0; color: #ffc4b4; font-size: 12px; line-height: 1.5; }
+.hospital-howto { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 7px; font-size: 11px; color: #a8b1a3; }
+.hospital-howto b { color: var(--amber-hi); font-weight: 700; }
 
-/* Invite, pause and ending overlays */
-.hospital-modal-scrim{position:absolute;inset:0;z-index:10;display:grid;place-items:center;padding:22px;background:#0207079c;backdrop-filter:blur(7px)}
-.hospital-modal{width:min(560px,100%);background:#142221f2;border:1px solid #a69770;padding:clamp(24px,4vw,44px);box-shadow:0 25px 80px #000d}
-.hospital-modal h2{font-family:Impact,"Arial Narrow",sans-serif;font-size:clamp(38px,4vw,62px);line-height:1;margin:0 0 17px;letter-spacing:.025em}
-.hospital-modal p:not(.hospital-kicker){color:#c0c7bb;font-size:13px;line-height:1.6}
-.hospital-modal input{margin:23px 0 10px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
-.hospital-modal .hospital-primary{width:100%;justify-content:center;margin-top:10px}
-.hospital-modal .hospital-plain{margin-top:13px}
+/* ------------------------------- Game layer ------------------------------- */
+.hospital-game { position: absolute; inset: 0; overflow: hidden; background: #050809; }
+.hospital-canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }
+.hospital-reticle { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; border-radius: 50%; background: #efe6c8b0; transform: translate(-50%, -50%); box-shadow: 0 0 8px #e7d7a780; pointer-events: none; z-index: 2; }
+.hospital-game.monster .hospital-reticle { background: #ff5b4a; box-shadow: 0 0 10px #ff3a2890; }
+.hospital-hud { position: absolute; top: 0; left: 0; right: 0; padding: 16px clamp(12px, 2vw, 26px); z-index: 4; display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; pointer-events: none; }
+.hospital-hud-left, .hospital-hud-right { display: flex; align-items: flex-start; gap: 12px; pointer-events: auto; }
+.hospital-hud-button, .hospital-icon-button { border: 1px solid #aeb9a15c; background: #0c1616c4; color: #e9e2c9; min-height: 40px; padding: 0 12px; font-size: 11px; font-weight: 800; letter-spacing: .1em; backdrop-filter: blur(6px); }
+.hospital-hud-button span { color: var(--amber); margin-left: 8px; }
+.hospital-icon-button { font-size: 18px; min-width: 40px; }
+.hospital-hud-objective { display: flex; flex-direction: column; padding: 5px 9px; text-shadow: 0 2px 7px #000; }
+.hospital-hud-objective strong { font-size: 12px; letter-spacing: .15em; }
+.hospital-hud-objective small { font-size: 10px; color: #b3bfb2; margin-top: 4px; letter-spacing: .06em; }
+.hospital-timer { font-size: 30px; font-weight: 800; line-height: 1; padding: 4px 6px; text-shadow: 0 3px 13px #000; font-variant-numeric: tabular-nums; }
+.hospital-timer.urgent { color: #ff6a55; animation: hospital-pulse 1s infinite; }
 
-/* Tab drawer */
-.hospital-panel-backdrop{position:absolute;inset:0;background:#030809a5;z-index:9;display:flex;justify-content:flex-start}
-.hospital-panel{width:min(480px,100vw);height:100%;overflow-y:auto;background:#13201feF;border-right:1px solid #a79270;padding:clamp(19px,3vw,36px);box-shadow:25px 0 75px #000b;scrollbar-color:#677b6b #172625}
-.hospital-panel-head{display:flex;align-items:center;justify-content:space-between;color:#c3b189;font-size:11px;letter-spacing:.2em;font-weight:800}
-.hospital-panel-head button{border:0;background:none;color:#e8ddc1;font-size:28px;line-height:1}
-.hospital-panel h2{font-family:Impact,"Arial Narrow",sans-serif;font-size:clamp(38px,4vw,56px);line-height:1;margin:25px 0 15px}
-.hospital-panel-lead{font-size:12px;line-height:1.7;color:#b7c1b5;margin:0 0 22px}
-.hospital-energy{position:relative;display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #65756780;padding-bottom:15px;font-size:11px;color:#d2c3a1}
-.hospital-energy i{position:absolute;height:3px;bottom:0;left:0;background:#c4a775;max-width:100%}
-.hospital-disguise,.hospital-tricks button{display:flex;width:100%;border:1px solid #65756790;background:#1a2c2a;color:#e9e4d3;text-align:left;padding:13px;margin-top:8px}
-.hospital-disguise{flex-direction:column;gap:6px;border-color:#b19972;font-size:13px;font-weight:700}
-.hospital-disguise small{font-size:10px;color:#b1beaa;font-weight:400}
-.hospital-tricks{margin-top:22px;display:grid;gap:6px}
-.hospital-tricks button{margin:0;gap:13px;align-items:flex-start}
-.hospital-tricks button:hover:not(:disabled),.hospital-disguise:hover{background:#2a3c36;border-color:#d4be90}
-.hospital-tricks button>b{font-size:12px;color:#d7bc88;border:1px solid #968463;padding:3px 7px}
-.hospital-tricks button span{display:flex;flex-direction:column;gap:5px;flex:1}
-.hospital-tricks button strong{font-size:12px}
-.hospital-tricks button small{font-size:10px;line-height:1.45;color:#9eada1}
-.hospital-tricks button em{font-size:10px;color:#c7ae7b;font-style:normal}
-.hospital-case-row{display:flex;justify-content:space-between;padding:16px 0;border-bottom:1px solid #64726775;font-size:11px;gap:15px}
-.hospital-case-row span{color:#9eab9e}.hospital-case-row strong{color:#dcc18c;text-align:right}
-.hospital-panel-foot{border-top:1px solid #69786e80;margin-top:30px;padding-top:16px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;color:#bdc5b5;font-size:10px}
-.hospital-panel-foot button{border:0;background:none;color:#d5bd88;font-size:10px;padding:0}
+/* Visitor HUD */
+.hospital-files { position: absolute; left: clamp(12px, 2vw, 26px); top: 66px; z-index: 4; display: flex; align-items: center; gap: 6px; pointer-events: none; text-shadow: 0 2px 6px #000; }
+.hospital-files i { width: 15px; height: 19px; border: 1px solid #c9b58a90; background: #0a1212a0; position: relative; }
+.hospital-files i:after { content: ""; position: absolute; left: 3px; right: 3px; top: 5px; height: 1px; background: #c9b58a50; box-shadow: 0 3px #c9b58a40, 0 6px #c9b58a30; }
+.hospital-files i.found { background: #8b2a22; border-color: #e0a07a; box-shadow: 0 0 12px #c0503a70; }
+.hospital-files span { margin-left: 8px; font-size: 10px; letter-spacing: .14em; color: #d8cfb5; }
+.hospital-vitals { position: absolute; left: clamp(12px, 2vw, 26px); bottom: 22px; z-index: 4; display: grid; gap: 7px; width: 210px; pointer-events: none; }
+.hospital-bar { display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 8px; font-size: 9px; letter-spacing: .14em; color: #cfc8b2; text-shadow: 0 1px 4px #000; }
+.hospital-bar i { height: 6px; background: #0009; border: 1px solid #ffffff22; overflow: hidden; }
+.hospital-bar b { display: block; height: 100%; transition: width .25s; }
+.hospital-bar.amber b { background: linear-gradient(90deg, #a07a3e, #e8c486); }
+.hospital-bar.pale b { background: #d8d8cf; }
+.hospital-bar.danger b { background: #d0402e; animation: hospital-pulse .6s infinite; }
+.hospital-bar.blood b { background: linear-gradient(90deg, #6a0f0a, #d83a2c); }
+.hospital-flares, .hospital-lives { display: flex; align-items: center; gap: 5px; font-size: 9px; letter-spacing: .14em; color: #cfc8b2; }
+.hospital-flares span, .hospital-lives span { width: 76px; }
+.hospital-flares i { width: 10px; height: 10px; border: 1px solid #ffffff40; transform: rotate(45deg); }
+.hospital-flares i.on { background: #fff4d6; box-shadow: 0 0 10px #fff4d6; }
+.hospital-flares i.cool { background: #7b7466; }
+.hospital-lives i { width: 12px; height: 4px; background: #ffffff1a; }
+.hospital-lives i.on { background: #c9483a; box-shadow: 0 0 8px #c9483a80; }
+.hospital-tag { font-style: normal; font-size: 9px; letter-spacing: .16em; color: #9fdcc0; }
+.hospital-interaction { position: absolute; left: 50%; top: calc(50% + 26px); transform: translateX(-50%); z-index: 5; border: 1px solid #c2b68b70; background: #0b1717d8; padding: 8px 12px; color: #ebdfb8; font-size: 10px; font-weight: 800; letter-spacing: .1em; white-space: nowrap; pointer-events: none; text-shadow: 0 2px 8px #000; overflow: hidden; }
+.hospital-interaction i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--amber-hi); box-shadow: 0 0 8px var(--amber); }
+.hospital-alert { position: absolute; left: 50%; top: 22%; transform: translateX(-50%); z-index: 4; color: #ff6a55; font-family: var(--display); font-size: clamp(22px, 3vw, 38px); letter-spacing: .08em; text-shadow: 0 0 18px #ff2a1a90; animation: hospital-pulse .5s infinite; pointer-events: none; }
 
-/* Deliberate, cosmetic pranks never interrupt the network or controls. */
-.hospital-fake-lag{position:absolute;inset:0;z-index:6;pointer-events:none;background:repeating-linear-gradient(0deg,#0005 0 3px,transparent 4px 7px),#192d2c7a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;animation:hospital-flicker .18s steps(2) infinite}
-.hospital-fake-lag strong{font-family:Impact,sans-serif;font-size:clamp(32px,6vw,75px);letter-spacing:.05em;color:#e4d9bf;text-shadow:3px 3px #8b352e}
-.hospital-fake-lag span{font-size:12px;letter-spacing:.2em;color:#d2bc91}
-.hospital-shadow{position:absolute;right:12%;bottom:0;width:17%;height:58%;z-index:5;pointer-events:none;opacity:.83;background:radial-gradient(ellipse at 50% 15%,#030505 0 15%,transparent 16%),linear-gradient(85deg,transparent 10%,#020404 35% 66%,transparent 85%);filter:blur(4px);animation:hospital-shadow-out 1.5s ease-in forwards}
-.hospital-scare{position:absolute;inset:0;z-index:7;pointer-events:none;display:grid;place-items:center;background:radial-gradient(circle,#551e1b 0%,#080b0b 42%,#000 100%);animation:hospital-shadow-out 1.5s ease-in forwards}
-.hospital-scare:before,.hospital-scare:after{content:"";position:absolute;top:35%;width:11%;height:9%;border-radius:50%;background:radial-gradient(circle,#111 0 24%,#c44237 27% 40%,#e2d6af 46% 56%,transparent 60%);filter:drop-shadow(0 0 35px #c33328)}
-.hospital-scare:before{left:34%}.hospital-scare:after{right:34%}
-.hospital-scare span{font-family:Impact,sans-serif;font-size:clamp(44px,8vw,120px);letter-spacing:.1em;color:#e7d6b8;margin-top:22%;text-shadow:5px 5px #9f3027}
-@keyframes hospital-shadow-out{0%,50%{opacity:1}100%{opacity:0}}
-@keyframes hospital-flicker{0%{opacity:1}50%{opacity:.74}100%{opacity:1}}
-.hospital-error,.hospital-note{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);z-index:20;background:#4a221e;border:1px solid #d17861;color:#f3dfd2;padding:13px 16px;font-size:12px;max-width:min(570px,92vw);display:flex;gap:14px;box-shadow:0 10px 30px #000a}
-.hospital-error button{border:0;background:none;color:inherit;font-size:18px;line-height:.7}
-.hospital-note{bottom:76px;background:#24352e;border-color:#b2bd8c;color:#e6ebce}
-@media(max-width:800px){.hospital-entry{padding:22px}.hospital-entry h1{font-size:clamp(76px,19vw,126px)}.hospital-building{left:12%;right:-30%;opacity:.6}.hospital-car{right:10%;bottom:6%;transform:scale(.7)}.hospital-entry-top span:last-child,.hospital-entry-bottom span:last-child{display:none}.hospital-entry-main{padding-bottom:15px}.hospital-pip-label{width:min(40vw,260px);top:78px}.hospital-pip-label.large{width:min(67vw,450px)}.hospital-hud-objective small{display:none}.hospital-bottom-hint{font-size:8px;white-space:normal;width:min(94vw,480px)}.hospital-intro-caption{bottom:16%;left:23px;right:23px}.hospital-panel{width:min(430px,100vw)}.hospital-hud{padding:12px}.hospital-hud-button span{display:none}}
-@media(prefers-reduced-motion:reduce){.hospital-fake-lag,.hospital-scare,.hospital-shadow{animation:none}}
+/* Creature HUD */
+.hospital-monster-status { position: absolute; left: clamp(12px, 2vw, 26px); top: 66px; z-index: 4; display: grid; gap: 8px; width: min(310px, 60vw); }
+.hospital-form { display: flex; gap: 10px; align-items: center; text-align: left; border: 1px solid #b3261e90; background: #1a0b0ad8; padding: 9px 11px; }
+.hospital-form.human { border-color: #9fa89c70; background: #0f1817d8; }
+.hospital-form b { font-size: 13px; border: 1px solid currentColor; padding: 3px 8px; color: var(--amber-hi); }
+.hospital-form.beast b { color: #ff6a55; }
+.hospital-form span { display: grid; gap: 3px; }
+.hospital-form strong { font-size: 11px; letter-spacing: .16em; }
+.hospital-form.beast strong { color: #ff8a78; text-shadow: 0 0 10px #ff2a1a70; }
+.hospital-form small { font-size: 9.5px; color: #b9b1a0; letter-spacing: .03em; }
+.hospital-monster-status .hospital-bar { grid-template-columns: 74px 1fr; }
+.hospital-friend { position: absolute; left: clamp(12px, 2vw, 26px); top: 186px; z-index: 4; display: grid; gap: 4px; padding: 9px 11px; background: #0a1010c0; border-left: 2px solid #b3261e; font-size: 9.5px; letter-spacing: .12em; color: #c4bca8; pointer-events: none; }
+.hospital-friend strong { font-size: 11px; color: var(--ink); letter-spacing: .18em; }
+.hospital-friend .hot { color: #ff7a66; }
+.hospital-hotbar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 4; display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; width: min(880px, 96vw); }
+.hospital-hotbar button { position: relative; width: 78px; height: 58px; border: 1px solid #b3261e70; background: #140b0ad8; display: grid; grid-template-rows: auto 1fr auto; padding: 4px 5px; text-align: left; overflow: hidden; transition: border-color .12s, transform .12s; }
+.hospital-hotbar button:not(:disabled):hover { border-color: #ff6a55; transform: translateY(-2px); }
+.hospital-hotbar button:before { content: ""; position: absolute; inset: 0; background: conic-gradient(#000b var(--cd, 0deg), transparent 0); pointer-events: none; }
+.hospital-hotbar kbd { font-size: 9px; justify-self: start; padding: 0 4px; }
+.hospital-hotbar span { font-size: 10px; font-weight: 700; letter-spacing: .03em; align-self: center; color: #efe3d0; }
+.hospital-hotbar small { font-size: 9px; color: #e0a07a; }
+.hospital-hotbar button.cooling small { color: #ffffffa0; }
+.hospital-hotbar-extra { width: 100%; text-align: center; font-size: 9.5px; color: #b9ad98; letter-spacing: .06em; text-shadow: 0 1px 4px #000; }
+.hospital-hotbar-extra kbd { margin: 0 3px 0 10px; font-size: 9px; }
+.hospital-pip { position: absolute; right: clamp(12px, 1.8vw, 24px); top: 70px; width: min(28vw, 400px); aspect-ratio: 1.6; z-index: 4; border: 2px solid #b3261ea0; box-shadow: 0 12px 35px #000b, 0 0 0 1px #000; display: flex; align-items: flex-start; justify-content: space-between; padding: 6px; color: #f0dfb7; pointer-events: auto; cursor: zoom-in; }
+.hospital-pip.large { width: min(48vw, 720px); cursor: zoom-out; }
+.hospital-pip span, .hospital-pip small { background: #0b0707d8; padding: 4px 6px; font-size: 9px; letter-spacing: .12em; display: flex; align-items: center; gap: 6px; }
+.hospital-pip span i { width: 7px; height: 7px; border-radius: 50%; background: #ff3a28; animation: hospital-pulse 1.2s infinite; }
+.hospital-minimap { position: absolute; right: clamp(12px, 1.8vw, 24px); bottom: 112px; z-index: 4; padding: 6px; background: #080606d8; border: 1px solid #b3261e55; pointer-events: none; }
+.hospital-minimap canvas { display: block; width: min(270px, 34vw); height: auto; image-rendering: pixelated; }
+.hospital-minimap span { position: absolute; left: 8px; top: 6px; font-size: 8px; letter-spacing: .14em; color: #b9a58b; }
+
+.hospital-bottom-hint { position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 3; padding: 8px 12px; background: #0b1718a0; border: 1px solid #72827948; color: #d4d6c8; font-size: 10px; letter-spacing: .06em; white-space: nowrap; pointer-events: none; animation: hospital-fade-late 30s forwards; }
+.hospital-intro-caption { position: absolute; bottom: 15%; left: clamp(20px, 7vw, 115px); max-width: 540px; z-index: 3; text-shadow: 0 4px 18px #000; pointer-events: none; animation: hospital-rise .8s ease-out; }
+.hospital-intro-caption span { color: var(--amber); font-size: 11px; letter-spacing: .22em; }
+.hospital-intro-caption h2 { font-family: var(--display); font-size: clamp(36px, 5vw, 72px); font-weight: 800; letter-spacing: .02em; line-height: 1; margin: 10px 0; }
+.hospital-intro-caption p { font-size: 13px; line-height: 1.55; color: #e4e4d9; max-width: 460px; }
+.hospital-cinematic-cut { position: absolute; inset: 0; z-index: 8; display: grid; place-items: center; background: #010303; color: #d4c39c; font-size: 12px; font-weight: 800; letter-spacing: .3em; pointer-events: none; text-align: center; padding: 20px; animation: hospital-cut .4s ease-out; }
+.hospital-loading, .hospital-webgl-error { position: absolute; inset: 0; display: grid; place-items: center; background: #060a0b; color: #e1d2ae; z-index: 2; letter-spacing: .2em; font-size: 12px; }
+.hospital-loading { animation: hospital-pulse 1.6s infinite; }
+.hospital-drag-tip { position: absolute; bottom: 90px; left: 50%; transform: translateX(-50%); z-index: 5; width: min(620px, 92vw); padding: 10px 12px; background: #102021ee; border: 1px solid #c7b7897a; font-size: 11px; text-align: center; display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 9px 14px; box-shadow: 0 10px 28px #0009; }
+.hospital-drag-tip span { width: 100%; color: #efe6d1; }
+.hospital-drag-tip button { border: 1px solid #9d9776; background: #263633; color: #f2dfb5; font-size: 10px; font-weight: 800; letter-spacing: .07em; padding: 9px 11px; }
+.hospital-offline { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 5; font-size: 10px; letter-spacing: .14em; color: #ffb49a; background: #2a0f0cd0; border: 1px solid #b3261e80; padding: 6px 10px; pointer-events: none; }
+
+/* ------------------------------ Overlays ------------------------------ */
+.hospital-locker { position: absolute; inset: 0; z-index: 3; pointer-events: none; animation: hospital-breathe 3.2s ease-in-out infinite; }
+.hospital-locker-slats { position: absolute; inset: -4%; background: repeating-linear-gradient(0deg, #030404f2 0 3.6%, transparent 3.6% 8.4%), radial-gradient(ellipse at center, transparent 38%, #000 88%); }
+.hospital-locker span { position: absolute; left: 50%; bottom: 24px; transform: translateX(-50%); font-size: 10px; letter-spacing: .18em; color: #cfc7b0; background: #000a; padding: 6px 10px; }
+.hospital-radio { position: absolute; left: 50%; bottom: 74px; transform: translateX(-50%); z-index: 6; width: min(560px, 92vw); padding: 10px 14px 12px; background: linear-gradient(180deg, #10150fe8, #0a0d09e8); border: 1px solid #7a8a5a90; box-shadow: 0 10px 30px #000a; pointer-events: none; animation: hospital-rise .25s ease-out; }
+.hospital-radio-head { display: flex; align-items: center; gap: 8px; font-size: 10px; letter-spacing: .2em; color: #b8d08a; }
+.hospital-radio-head i { width: 8px; height: 8px; border-radius: 50%; background: #9bd05a; box-shadow: 0 0 8px #9bd05a; animation: hospital-pulse .5s infinite; }
+.hospital-radio p { margin: 7px 0 0; font-size: 15px; line-height: 1.45; color: #eef3dc; text-shadow: 0 0 10px #9bd05a30; }
+.hospital-document { position: absolute; right: clamp(16px, 5vw, 80px); top: 50%; transform: translateY(-50%) rotate(1.2deg); z-index: 6; width: min(420px, 88vw); cursor: pointer; animation: hospital-paper .35s ease-out; }
+.hospital-document-paper { position: relative; padding: 26px 26px 18px; color: #2b2520; background: linear-gradient(180deg, #e3dac0, #d2c7a7); box-shadow: 0 25px 60px #000d, inset 0 0 60px #8a744a55; font-family: "Courier New", var(--mono); }
+.hospital-document-paper:before { content: ""; position: absolute; inset: 0; background: radial-gradient(ellipse at 80% 20%, #7a5a2a30, transparent 50%), radial-gradient(ellipse at 20% 90%, #5a2a1a28, transparent 40%); pointer-events: none; }
+.hospital-document-paper header { display: flex; justify-content: space-between; border-bottom: 2px solid #2b252060; padding-bottom: 8px; font-size: 11px; letter-spacing: .2em; font-weight: 700; }
+.hospital-document-paper h3 { font-family: Georgia, "Times New Roman", serif; font-size: 20px; margin: 14px 0 10px; }
+.hospital-document-paper p { font-size: 13.5px; line-height: 1.6; margin: 0 0 12px; min-height: 5em; }
+.hospital-document-note { color: #8b1d15; font-style: italic; font-family: Georgia, serif !important; transform: rotate(-1deg); min-height: 0 !important; }
+.hospital-document-paper footer { font-size: 9px; letter-spacing: .16em; color: #5a5040; border-top: 1px dashed #2b252050; padding-top: 8px; }
+.hospital-document-paper kbd { color: #2b2520; background: #0001; border-color: #2b252060; }
+.hospital-caret { display: inline-block; width: 7px; height: 13px; background: #2b2520; margin-left: 2px; vertical-align: -2px; animation: hospital-pulse .8s infinite; }
+.hospital-fake-lag { position: absolute; inset: 0; z-index: 7; pointer-events: none; display: flex; justify-content: center; padding-top: 18vh; background: #0000004d; }
+.hospital-fake-lag-box { align-self: flex-start; display: flex; gap: 14px; align-items: center; padding: 14px 18px; background: #121314f2; border: 1px solid #ffffff22; border-radius: 6px; box-shadow: 0 20px 50px #000c; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; }
+.hospital-fake-lag-box strong { display: block; font-size: 14px; color: #f2f2f2; font-weight: 600; }
+.hospital-fake-lag-box span { display: block; font-size: 12px; color: #9a9a9a; margin-top: 4px; }
+.hospital-spinner { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #ffffff22; border-top-color: #e8e8e8; animation: hospital-spin .8s linear infinite; }
+.hospital-screamer { position: absolute; inset: 0; z-index: 12; background: #000; pointer-events: none; animation: hospital-scream-in .06s steps(1); }
+.hospital-screamer canvas { width: 100%; height: 100%; display: block; object-fit: cover; image-rendering: pixelated; filter: contrast(1.35) saturate(1.3); }
+.hospital-screamer.caught canvas { animation: hospital-lunge 2.3s ease-out forwards; }
+
+/* ------------------------------ Modals ------------------------------ */
+.hospital-modal-scrim { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; padding: 22px; background: #02070790; backdrop-filter: blur(7px); }
+.hospital-modal-scrim.soft { background: #0207075a; backdrop-filter: blur(3px); }
+.hospital-modal { width: min(580px, 100%); max-height: 94dvh; overflow-y: auto; background: #111c1bf2; border: 1px solid #a6977070; padding: clamp(22px, 4vw, 42px); box-shadow: 0 25px 80px #000d; }
+.hospital-modal h2 { font-family: var(--display); font-size: clamp(36px, 4vw, 60px); line-height: 1; margin: 0 0 16px; letter-spacing: .02em; }
+.hospital-modal p:not(.hospital-kicker) { color: #c0c7bb; font-size: 13px; line-height: 1.6; }
+.hospital-modal input { margin: 18px 0 10px; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.hospital-modal .hospital-primary { width: 100%; justify-content: center; margin-top: 10px; }
+.hospital-modal .hospital-plain { margin-top: 12px; }
+.hospital-small { font-size: 11px !important; color: #8f988c !important; }
+.hospital-ending.lost .hospital-modal { border-color: #b3261e90; background: linear-gradient(180deg, #1c0c0bf4, #0f0908f4); }
+.hospital-ending.won .hospital-modal { border-color: #c9b58a90; }
+.hospital-ending .hospital-modal { animation: hospital-rise .6s ease-out; }
+.hospital-reveal { font-size: 15px !important; color: #f0d8c8 !important; border-left: 3px solid #b3261e; padding-left: 12px; }
+.hospital-reveal b { color: #ff8a78; font-size: 18px; }
+.hospital-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin: 18px 0; background: #ffffff14; border: 1px solid #ffffff14; }
+.hospital-stats div { background: #0b1212; padding: 10px; }
+.hospital-stats dt { font-size: 9px; letter-spacing: .14em; color: #8f988c; }
+.hospital-stats dd { margin: 5px 0 0; font-size: 20px; font-weight: 800; color: var(--amber-hi); }
+.hospital-ending-actions { display: grid; gap: 8px; }
+.hospital-vote-note { color: var(--amber-hi) !important; font-size: 12px !important; }
+.hospital-text-trick { width: min(620px, 100%); }
+.hospital-presets { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 14px; }
+.hospital-presets button { display: flex; gap: 8px; align-items: flex-start; text-align: left; border: 1px solid #b3261e55; background: #170d0cd0; padding: 9px 10px; font-size: 11.5px; line-height: 1.35; color: #eadbc8; }
+.hospital-presets button:hover { border-color: #ff6a55; background: #2a1411; }
+.hospital-text-trick form { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; }
+.hospital-text-trick form input { margin: 0; }
+.hospital-text-trick form .hospital-primary { margin: 0; width: auto; }
+
+/* ------------------------------ Tab panel ------------------------------ */
+.hospital-panel-backdrop { position: absolute; inset: 0; background: #030809a0; z-index: 9; display: flex; justify-content: flex-start; }
+.hospital-panel { width: min(500px, 100vw); height: 100%; overflow-y: auto; background: var(--panel); border-right: 1px solid #a7927066; padding: clamp(18px, 3vw, 34px); box-shadow: 25px 0 75px #000b; scrollbar-color: #677b6b #172625; animation: hospital-slide .22s ease-out; }
+.hospital-panel-head { display: flex; align-items: center; justify-content: space-between; color: #c3b189; font-size: 11px; letter-spacing: .2em; font-weight: 800; }
+.hospital-panel-head button { border: 0; background: none; color: #e8ddc1; font-size: 28px; line-height: 1; }
+.hospital-panel h2 { font-family: var(--display); font-size: clamp(36px, 4vw, 54px); line-height: 1; margin: 22px 0 14px; }
+.hospital-panel h3 { font-size: 10px; letter-spacing: .22em; color: var(--amber); margin: 20px 0 8px; }
+.hospital-panel-lead { font-size: 12px; line-height: 1.7; color: #b7c1b5; margin: 0 0 18px; }
+.hospital-energy { position: relative; display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid #65756780; padding-bottom: 14px; font-size: 11px; color: #d2c3a1; }
+.hospital-energy i { position: absolute; height: 3px; bottom: 0; left: 0; background: linear-gradient(90deg, #6a0f0a, #d83a2c); max-width: 100%; }
+.hospital-disguise, .hospital-tricks button, .hospital-stories button { display: flex; width: 100%; border: 1px solid #65756770; background: #182926; color: #e9e4d3; text-align: left; padding: 12px; margin-top: 8px; }
+.hospital-disguise { flex-direction: column; gap: 6px; border-color: #b3261e90; background: #1f110f; font-size: 13px; font-weight: 700; }
+.hospital-disguise small { font-size: 10px; color: #c0a79a; font-weight: 400; }
+.hospital-tricks { display: grid; gap: 6px; }
+.hospital-tricks button { margin: 0; gap: 12px; align-items: flex-start; }
+.hospital-tricks button:hover:not(:disabled), .hospital-disguise:hover, .hospital-stories button:hover { background: #2a3c36; border-color: #d4be90; }
+.hospital-tricks button > b { font-size: 12px; color: #d7bc88; border: 1px solid #96846380; padding: 2px 7px; min-width: 26px; text-align: center; }
+.hospital-tricks button span { display: flex; flex-direction: column; gap: 4px; flex: 1; }
+.hospital-tricks button strong { font-size: 12px; }
+.hospital-tricks button small { font-size: 10px; line-height: 1.45; color: #9eada1; }
+.hospital-tricks button em { font-size: 10px; color: #c7ae7b; font-style: normal; }
+.hospital-case-row { display: flex; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid #64726760; font-size: 11px; gap: 15px; }
+.hospital-case-row span { color: #9eab9e; } .hospital-case-row strong { color: #dcc18c; text-align: right; }
+.hospital-stories button { gap: 10px; font-size: 12px; align-items: baseline; }
+.hospital-stories button b { color: #e0a07a; font-size: 11px; }
+.hospital-controls { list-style: none; padding: 0; margin: 20px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; font-size: 11px; color: #b9c1b3; }
+.hospital-controls b { color: var(--amber-hi); margin-right: 6px; }
+.hospital-settings { margin-top: 10px; display: grid; gap: 10px; }
+.hospital-settings label { display: grid; grid-template-columns: 1fr 120px 40px; align-items: center; gap: 10px; font-size: 11px; color: #c9cdbf; }
+.hospital-settings label.check { grid-template-columns: auto 1fr; }
+.hospital-settings select { grid-column: 2 / 4; background: #0a1414; border: 1px solid #71807680; padding: 7px; font-size: 11px; }
+.hospital-settings input[type=range] { accent-color: var(--amber); width: 100%; }
+.hospital-settings output { font-size: 10px; color: var(--amber-hi); text-align: right; }
+.hospital-panel-foot { border-top: 1px solid #69786e70; margin-top: 26px; padding-top: 14px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; color: #bdc5b5; font-size: 10px; }
+.hospital-panel-foot button { border: 0; background: none; color: #e0a07a; font-size: 10px; padding: 0; letter-spacing: .08em; }
+
+.hospital-error, .hospital-note { position: absolute; left: 50%; bottom: 22px; transform: translateX(-50%); z-index: 20; background: #4a221ef2; border: 1px solid #d17861; color: #f3dfd2; padding: 12px 15px; font-size: 12px; max-width: min(570px, 92vw); display: flex; gap: 14px; box-shadow: 0 10px 30px #000a; }
+.hospital-error button { border: 0; background: none; color: inherit; font-size: 18px; line-height: .7; }
+.hospital-note { bottom: auto; top: 22%; background: #16211ce8; border-color: #b2bd8c80; color: #e6ebce; letter-spacing: .04em; animation: hospital-rise .25s ease-out; pointer-events: none; }
+
+@keyframes hospital-shake { 0% { transform: translate(0, 0); } 25% { transform: translate(-6px, 4px); } 50% { transform: translate(5px, -5px); } 75% { transform: translate(-4px, -3px); } 100% { transform: translate(0, 0); } }
+@keyframes hospital-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes hospital-window { 0%, 40%, 44%, 48%, 100% { background: #0c1214; } 42%, 46% { background: #7a6a3a; box-shadow: 0 0 30px #d6b27a60; } }
+@keyframes hospital-figure { 0%, 62% { opacity: 1; } 64%, 100% { opacity: 0; } }
+@keyframes hospital-fog { from { transform: translateX(-4%); } to { transform: translateX(4%); } }
+@keyframes hospital-title-glitch { 0%, 91%, 94%, 100% { opacity: 0; transform: none; } 92% { opacity: .9; transform: translate(-6px, 2px); } 93% { opacity: .7; transform: translate(5px, -3px); clip-path: inset(50% 0 20% 0); } }
+@keyframes hospital-rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes hospital-cut { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hospital-fade-late { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes hospital-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.012); } }
+@keyframes hospital-paper { from { opacity: 0; transform: translateY(-40%) rotate(4deg); } to { opacity: 1; transform: translateY(-50%) rotate(1.2deg); } }
+@keyframes hospital-spin { to { transform: rotate(360deg); } }
+@keyframes hospital-scream-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hospital-lunge { 0% { transform: scale(.5); } 18% { transform: scale(1.25); } 100% { transform: scale(1.5); filter: brightness(.3) contrast(1.35); } }
+@keyframes hospital-slide { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (max-width: 860px) {
+  .hospital-entry { padding: 18px; }
+  .hospital-entry h1 { font-size: clamp(64px, 18vw, 120px); }
+  .hospital-building { left: 8%; right: -30%; opacity: .5; }
+  .hospital-car { right: 6%; bottom: 6%; transform: scale(.7); }
+  .hospital-roles { grid-template-columns: 1fr; }
+  .hospital-entry-top span:last-child, .hospital-entry-bottom span:last-child { display: none; }
+  .hospital-pip { width: min(42vw, 260px); }
+  .hospital-pip.large { width: min(70vw, 460px); }
+  .hospital-hud-objective small { display: none; }
+  .hospital-bottom-hint { font-size: 8px; white-space: normal; width: min(94vw, 480px); }
+  .hospital-intro-caption { bottom: 18%; left: 20px; right: 20px; }
+  .hospital-panel { width: min(440px, 100vw); }
+  .hospital-hud { padding: 10px; }
+  .hospital-hud-button span { display: none; }
+  .hospital-hotbar button { width: 62px; height: 50px; }
+  .hospital-minimap { display: none; }
+  .hospital-friend { top: 170px; }
+  .hospital-presets { grid-template-columns: 1fr; }
+  .hospital-stats { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-height: 700px) { .hospital-minimap canvas { width: min(200px, 26vw); } .hospital-friend { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .hospital-app.shaking .hospital-game, .hospital-screamer canvas, .hospital-locker, .hospital-entry h1:before, .hospital-fog { animation: none; }
+}

@@ -1,133 +1,49 @@
 "use client";
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { GameView } from "./game-types";
-import type { MotionInput } from "./three-first-person";
+import { ARRIVAL_MS, INTRO_MS } from "../lib/hospital";
+import type { GameEvent, GameView, LocalState, Side } from "./game-types";
+import type { MoveInput } from "./game-view";
+import { HorrorAudio } from "./engine/audio";
+import { TRICKS, type Trick } from "./ui/data";
+import { InviteScreen, Landing, Waiting, type Peek } from "./ui/entry";
+import { MonsterHud, Minimap, VisitorHud, nearbyHint, timer, zoneName } from "./ui/hud";
+import { DocumentReader, Ending, FakeLag, LockerView, RadioLine, Screamer } from "./ui/overlays";
+import { Panel, TextTrick, type AllSettings } from "./ui/panel";
 
-const ThreeFirstPerson = lazy(() => import("./three-first-person"));
+const GameViewCanvas = lazy(() => import("./game-view"));
 const API = "/api/game";
-const storageKey = (code: string, side: "player" | "monster") => `night-archive:seat:${code}:${side}`;
+const seatKey = (code: string, side: Side) => `night-archive:seat:${code}:${side}`;
 const tabSideKey = (code: string) => `night-archive:tab-side:${code}`;
+const SETTINGS_KEY = "night-archive:settings";
+const DEFAULT_SETTINGS: AllSettings = { sensitivity: 1, quality: "medium", invertY: false, fov: 75, reduced: false, volume: .8 };
+const HOLD_MS = 1300;
 
-const tricks = [
-  { type: "sound", label: "Чужой голос", detail: "Шёпот и низкий звук прямо у друга за спиной.", key: "1", cost: 22 },
-  { type: "scare", label: "Скример", detail: "На миг закрывает обзор пугающим видением. Нужно подойти ближе.", key: "2", cost: 26 },
-  { type: "glitch", label: "Фальшивый лаг", detail: "Экран притворяется зависшим. Сеть и управление продолжают работать.", key: "3", cost: 18 },
-  { type: "footsteps", label: "Шаги рядом", detail: "Друг слышит приближение того, кого нет.", key: "4", cost: 10 },
-  { type: "doorSlam", label: "Хлопок двери", detail: "Резкий звук в коридоре заставит оглянуться.", key: "5", cost: 18 },
-  { type: "shadow", label: "Тень пациента", detail: "Короткий силуэт на краю зрения.", key: "6", cost: 24 },
-  { type: "blackout", label: "Погасить свет", detail: "На время оставляет друга с одним фонарём.", key: "7", cost: 28 },
-  { type: "knock", label: "Стук в стене", detail: "Тихий стук рядом с другом, будто кто-то просится наружу.", key: "8", cost: 14 },
-  { type: "lock", label: "Дверь заело", detail: "На восемь секунд блокирует открытый выход.", key: "9", cost: 32 },
-] as const;
+type Response = { game?: GameView; code?: string; token?: string; invite?: string; side?: Side; host?: string; error?: string };
 
-function parseInvite(value: string) {
+function parseTicket(value: string) {
   try {
-    const url = new URL(value.trim());
-    const ticket = url.searchParams.get("monster") ?? "";
+    const url = new URL(value.trim(), typeof location !== "undefined" ? location.href : "http://x");
+    const ticket = url.searchParams.get("join") ?? url.searchParams.get("monster") ?? "";
     const dot = ticket.indexOf(".");
     if (dot < 0) return null;
-    const code = ticket.slice(0, dot).toUpperCase();
-    const invite = ticket.slice(dot + 1);
+    const code = ticket.slice(0, dot).toUpperCase(), invite = ticket.slice(dot + 1);
     return /^[A-Z0-9]{6,8}$/.test(code) && /^[A-Za-z0-9_-]{25,100}$/.test(invite) ? { code, invite } : null;
   } catch { return null; }
 }
+function errorText(error: unknown) { return error instanceof Error ? error.message : "Больница не отвечает. Попробуйте ещё раз."; }
 
-function timer(ms: number) {
-  const seconds = Math.max(0, Math.ceil(ms / 1000));
-  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
-}
-
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : "Больница не отвечает. Попробуйте ещё раз.";
-}
-
-function nearbyHint(game: GameView) {
-  if (game.phase !== "playing") return "";
-  const distance = (point: { x: number; y: number }) => Math.hypot(game.self.x - point.x, game.self.y - point.y);
-  if (game.side === "monster") {
-    if (game.lockers.some(point => distance(point) <= 1.05)) return "E · ОБЫСКАТЬ ШКАФ";
-    return "";
-  }
-  if (game.self.hidden) return "E · ВЫЙТИ ИЗ УКРЫТИЯ";
-  if (game.fuses.some(clue => !clue.found && clue.x !== null && clue.y !== null && distance({ x: clue.x, y: clue.y }) <= 1.05)) return "E · ЗАБРАТЬ ИСТОРИЮ ПАЦИЕНТА";
-  if (distance(game.switch) <= 1.05) return game.found === game.fuses.length ? "E · ВКЛЮЧИТЬ АВАРИЙНОЕ ПИТАНИЕ" : "СНАЧАЛА НАЙДИТЕ ЧЕТЫРЕ ИСТОРИИ";
-  if (distance(game.exit) <= 1.05) return game.power ? "E · ВЫЙТИ ИЗ КОРПУСА" : "ВЫХОД ЗАПЕРТ · ИЩИТЕ УЛИКИ";
-  if (game.lockers.some(point => distance(point) <= .85)) return "E · СПРЯТАТЬСЯ В ШКАФУ";
-  return "";
-}
-
-function zoneName(game: GameView) {
-  if (game.self.y >= 17) return "У ВХОДА";
-  if (game.self.x < 9) return "ПАЛАТЫ";
-  if (game.self.x < 18) return "ЛЕЧЕБНОЕ КРЫЛО";
-  return "АРХИВ И ПОСТ ОХРАНЫ";
-}
-
-function useAudio(reduced: boolean) {
-  const context = useRef<AudioContext | null>(null);
-  const noiseBuffer = useRef<AudioBuffer | null>(null);
-  const [muted, setMuted] = useState(false);
-  const [volume, setVolume] = useState(.42);
-  const unlock = useCallback(() => {
-    if (!context.current) {
-      context.current = new AudioContext();
-      const buffer = context.current.createBuffer(1, Math.round(context.current.sampleRate * .8), context.current.sampleRate);
-      const samples = buffer.getChannelData(0);
-      for (let i = 0; i < samples.length; i++) samples[i] = (Math.random() * 2 - 1) * (i % 2 ? .8 : 1);
-      noiseBuffer.current = buffer;
-    }
-    void context.current.resume();
-  }, []);
-  const play = useCallback((type: string) => {
-    if (!context.current || muted || volume <= 0) return;
-    const ctx = context.current;
-    const now = ctx.currentTime;
-    const level = volume * (reduced ? .35 : 1);
-    const tone = (from: number, to: number, delay: number, duration: number, loudness: number, wave: OscillatorType = "sawtooth") => {
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      const at = now + delay;
-      osc.type = wave;
-      osc.frequency.setValueAtTime(from, at);
-      osc.frequency.exponentialRampToValueAtTime(Math.max(20, to), at + duration);
-      gain.gain.setValueAtTime(.0001, at);
-      gain.gain.exponentialRampToValueAtTime(Math.max(.001, level * loudness), at + .018);
-      gain.gain.exponentialRampToValueAtTime(.0001, at + duration);
-      osc.connect(gain); gain.connect(ctx.destination); osc.start(at); osc.stop(at + duration + .03);
-    };
-    const hiss = (delay: number, duration: number, loudness: number, frequency: number) => {
-      if (!noiseBuffer.current) return;
-      const source = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
-      const at = now + delay;
-      source.buffer = noiseBuffer.current; source.loop = true;
-      filter.type = "bandpass"; filter.frequency.value = frequency; filter.Q.value = .7;
-      gain.gain.setValueAtTime(.0001, at);
-      gain.gain.exponentialRampToValueAtTime(Math.max(.001, level * loudness), at + .025);
-      gain.gain.exponentialRampToValueAtTime(.0001, at + duration);
-      source.connect(filter); filter.connect(gain); gain.connect(ctx.destination);
-      source.start(at); source.stop(at + duration + .03);
-    };
-    if (type === "sound") { tone(88, 39, 0, 1.05, .23); tone(310, 57, .12, .84, .11, "triangle"); hiss(.05, .95, .1, 780); }
-    else if (type === "scare" || type === "caught") { tone(840, 54, 0, .72, .31); tone(92, 30, 0, 1, .2); hiss(0, .78, .22, 1650); }
-    else if (type === "doorSlam") { hiss(0, .46, .22, 410); tone(115, 42, 0, .7, .22); }
-    else if (type === "footsteps" || type === "step" || type === "heavy") {
-      for (let i = 0; i < (type === "footsteps" ? 3 : 1); i++) { tone(125, 50, i * .21, .13, type === "heavy" ? .18 : .11, "triangle"); hiss(i * .21, .1, .065, 210); }
-    } else if (type === "glitch") { hiss(0, .62, .11, 1200); tone(140, 69, .08, .5, .08, "square"); }
-    else if (type === "knock") { for (let i = 0; i < 3; i++) tone(160, 72, i * .18, .1, .14, "triangle"); }
-    else if (type === "shadow" || type === "blackout") { tone(82, 27, 0, 1.1, .17); hiss(.1, .8, .06, 280); }
-    else if (type === "start") { tone(72, 43, 0, 1.4, .1, "triangle"); }
-    else if (type === "fuse") { tone(420, 680, 0, .29, .1, "triangle"); }
-    else if (type === "power") { tone(250, 590, 0, .65, .16, "triangle"); hiss(0, .6, .05, 1500); }
-    else if (type === "flare") { hiss(0, .45, .19, 2400); tone(450, 800, 0, .34, .07, "triangle"); }
-  }, [muted, volume, reduced]);
-  return useMemo(() => ({ unlock, play, muted, setMuted, volume, setVolume }), [unlock, play, muted, volume]);
-}
-
-function introCopy(game: GameView, now: number) {
-  const elapsed = now - game.startedAt;
-  if (elapsed < 5_000) return { kicker: "ПОСЛЕДНЯЯ ПОЕЗДКА", title: "Мы приехали вместе.", text: "Заброшенный лечебный корпус. Внутри лежат истории, которые кто-то очень хотел забыть." };
-  if (elapsed < 12_000) return { kicker: "У ВХОДА", title: "Двери открыты.", text: "Вы вышли из машины и вошли в вестибюль. Осмотритесь вместе. WASD — идти, мышь — смотреть." };
-  return { kicker: "КОРПУС 13", title: "Двери закрываются.", text: "Войдите вместе. Через несколько секунд свет погаснет, и вы потеряете друг друга." };
+function introCopy(game: GameView, elapsed: number) {
+  const monster = game.side === "monster";
+  if (elapsed < ARRIVAL_MS) return monster
+    ? { kicker: "ТЫ — СУЩЕСТВО", title: "Приехали вдвоём.", text: "Для второго игрока ты просто спутник. Пока." }
+    : { kicker: "КОРПУС 13 · 02:47", title: "Мы приехали вдвоём.", text: "Говорят, после закрытия отсюда никто не уезжал." };
+  if (elapsed < 13_000) return monster
+    ? { kicker: "ИГРАЙ РОЛЬ", title: "Будь рядом.", text: "Иди со спутником ко входу. Не выдавай себя." }
+    : { kicker: "У ВХОДА", title: "Двери открыты.", text: "Выйдите из машины и зайдите внутрь. WASD — идти, мышь — смотреть." };
+  return monster
+    ? { kicker: "СКОРО", title: "Свет погаснет.", text: "Вас разделит — и начнётся охота. G — истинный облик." }
+    : { kicker: "ВЕСТИБЮЛЬ", title: "Не отходите далеко.", text: "Свет здесь ещё работает. Пока." };
 }
 
 export default function Home() {
@@ -135,148 +51,220 @@ export default function Home() {
   const [code, setCode] = useState("");
   const [token, setToken] = useState("");
   const [invite, setInvite] = useState("");
+  const [name, setNameState] = useState("");
+  const [chosenSide, setChosenSide] = useState<Side>("monster");
   const [joinLink, setJoinLink] = useState("");
   const [joining, setJoining] = useState(false);
+  const [peek, setPeek] = useState<Peek>(null);
+  const [peeking, setPeeking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
   const [chromeUrl, setChromeUrl] = useState("");
   const [panel, setPanel] = useState(false);
   const [pipLarge, setPipLarge] = useState(false);
-  const [reduced, setReduced] = useState(false);
+  const [showMap, setShowMap] = useState(true);
+  const [textTrick, setTextTrick] = useState<null | "radio" | "write" | "voice">(null);
+  const [reading, setReading] = useState<number | null>(null);
+  const [radio, setRadio] = useState<{ name: string; text: string; at: number } | null>(null);
+  const [screamer, setScreamer] = useState<{ variant: number; until: number; caught?: boolean } | null>(null);
+  const [fakeLag, setFakeLag] = useState(0);
+  const [settings, setSettingsState] = useState<AllSettings>(DEFAULT_SETTINGS);
+  const [local, setLocal] = useState<LocalState>({ stamina: 1, crouch: false, light: true, sprinting: false, holdProgress: 0, holdLabel: "" });
+  const [hold, setHold] = useState(0);
+  const [lastSeen, setLastSeen] = useState<{ x: number; y: number; at: number } | null>(null);
   const [now, setNow] = useState(0);
   const gameRef = useRef<GameView | null>(null);
   const codeRef = useRef("");
   const tokenRef = useRef("");
-  const motionBusy = useRef(false);
+  const clock = useRef(0);
+  const clockReady = useRef(false);
+  const moveBusy = useRef(false);
+  const pendingMove = useRef<MoveInput | null>(null);
   const seen = useRef(new Set<string>());
-  const introSound = useRef("");
-  const audio = useAudio(reduced);
+  const holdRef = useRef<{ start: number; raf: number } | null>(null);
+  const pipRef = useRef<HTMLDivElement>(null);
+  const audio = useMemo(() => new HorrorAudio(), []);
+
+  const setName = (v: string) => { setNameState(v); try { localStorage.setItem("night-archive:name", v); } catch { /* private mode */ } };
+  const setSettings = (s: AllSettings) => { setSettingsState(s); try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* private mode */ } };
+  useEffect(() => { audio.setVolume(settings.volume); }, [audio, settings.volume]);
 
   const request = useCallback(async (body?: Record<string, unknown>, seat = tokenRef.current, room = codeRef.current) => {
+    const sentAt = Date.now();
     const response = await fetch(body ? API : `${API}?code=${encodeURIComponent(room)}`, {
       method: body ? "POST" : "GET",
       headers: { ...(body ? { "Content-Type": "application/json" } : {}), ...(seat ? { Authorization: `Bearer ${seat}` } : {}) },
       body: body ? JSON.stringify(body) : undefined,
       cache: "no-store",
     });
-    const data = await response.json() as { game?: GameView; code?: string; token?: string; monsterInvite?: string; error?: string };
+    const data = await response.json() as Response;
     if (!response.ok) throw new Error(data.error || "Больница не отвечает.");
+    if (data.game) {
+      // Estimate the server clock from the round trip midpoint.
+      const receivedAt = Date.now();
+      const sample = data.game.now - (sentAt + receivedAt) / 2;
+      if (!clockReady.current) { clock.current = sample; clockReady.current = true; }
+      else if (receivedAt - sentAt < 900) clock.current += (sample - clock.current) * .12;
+    }
     return data;
   }, []);
 
+  const uiEvent = useCallback((e: GameEvent, view: GameView) => {
+    const t = Date.now() + clock.current;
+    const visitor = view.side === "player";
+    if (visitor) {
+      if (e.type === "clue") { setReading(e.variant ?? 0); setNote(`История найдена · ${view.found}/${view.total}`); }
+      if (e.type === "allClues") setNote("Все истории у вас. Щиток — на посту охраны, северо-восток.");
+      if (e.type === "power") setNote("Питание есть! Бегите к главному входу.");
+      if (e.type === "battery") setNote("Батарейки: фонарь +45%");
+      if (e.type === "radio" && e.text) setRadio({ name: view.names.monster, text: e.text, at: e.at });
+      if (e.type === "scare" && !settings.reduced) setScreamer({ variant: e.variant ?? 0, until: t + 1400 });
+      if (e.type === "caught") setScreamer({ variant: 1, until: t + (settings.reduced ? 600 : 2300), caught: true });
+      if (e.type === "wake") window.setTimeout(() => setNote(`Вы вырвались. Сил осталось: ${e.variant ?? 1}`), 2600);
+      if (e.type === "flare" && e.variant) setNote("Вспышка ослепила существо! Бегите.");
+      if (e.type === "lock") setNote("Что-то держит дверь изнутри…");
+      if (e.type === "glitch" && !settings.reduced) {
+        setFakeLag(e.until);
+        window.setTimeout(() => { setFakeLag(0); setScreamer({ variant: 2, until: Date.now() + clock.current + 420 }); audio.play("unglitch"); }, Math.max(0, e.until - t));
+      }
+    } else {
+      if (e.type === "clue") setNote(`Найдена история · ${view.found}/${view.total}`);
+      if (e.type === "power") setNote("Щиток включён. Добыча побежит к главному входу!");
+      if (e.type === "flare" && e.variant) setNote("Ослеплён вспышкой!");
+      if (e.type === "caught") setNote(view.phase === "ended" ? "Попалась добыча." : `Попалась! Сил у добычи: ${view.friend?.lives ?? 0}`);
+      if (e.type === "hide") setNote("Рядом хлопнула дверца шкафа…");
+      if (e.type === "radio") setNote("Рация: сообщение ушло.");
+    }
+  }, [audio, settings.reduced]);
+
   const accept = useCallback((view: GameView) => {
     const old = gameRef.current;
-    if (old && (view.version < old.version || view.version === old.version && view.now < old.now)) return;
-    if (old) for (const event of view.events) {
-      if (seen.current.has(event.id)) continue;
-      seen.current.add(event.id);
-      if (view.side === "player" || ["start", "fuse", "power"].includes(event.type)) audio.play(event.type);
-      if (event.type === "fuse" && view.side === "player") setNote("Найдена улика. Сохраните её для выхода.");
-      if (event.type === "power" && view.side === "player") setNote("Питание восстановлено. Ищите выход.");
+    if (old && old.round === view.round && (view.version < old.version || (view.version === old.version && view.now < old.now))) return;
+    for (const e of view.events) {
+      if (seen.current.has(e.id)) continue;
+      seen.current.add(e.id);
+      if (old || view.now - e.at < 1500) uiEvent(e, view);
     }
-    if (seen.current.size > 200) seen.current = new Set(view.events.map(event => event.id));
+    if (seen.current.size > 300) seen.current = new Set(view.events.map(e => e.id));
+    if (view.side === "monster" && view.friend?.detected && view.spectate) setLastSeen({ x: view.spectate.x, y: view.spectate.y, at: view.now });
+    if (old && old.round !== view.round) { setReading(null); setRadio(null); setLastSeen(null); }
     gameRef.current = view;
     setGame(view);
-  }, [audio]);
+  }, [uiEvent]);
 
+  /* --------------------------- boot from URL / storage --------------------------- */
   useEffect(() => {
     let mounted = true;
     queueMicrotask(() => {
       if (!mounted) return;
+      try {
+        const saved = localStorage.getItem(SETTINGS_KEY);
+        if (saved) setSettingsState({ ...DEFAULT_SETTINGS, ...JSON.parse(saved) });
+        setNameState(localStorage.getItem("night-archive:name") ?? "");
+      } catch { /* storage blocked */ }
+      if (matchMedia("(prefers-reduced-motion: reduce)").matches) setSettingsState(s => ({ ...s, reduced: true }));
       const url = new URL(location.href);
-      const monster = url.searchParams.get("monster");
-      if (monster) { setJoining(true); setJoinLink(url.href); history.replaceState(null, "", url.pathname); }
-      const latest = !monster && (url.searchParams.get("room") || localStorage.getItem("night-archive:latest"));
+      const ticket = parseTicket(url.href);
+      if (ticket) {
+        history.replaceState(null, "", url.pathname);
+        setPeeking(true);
+        void request({ type: "peek", ...ticket }, "", "").then(data => {
+          if (!mounted) return;
+          setPeek({ code: ticket.code, invite: ticket.invite, host: data.host ?? "Друг", side: data.side ?? "player" });
+        }).catch(cause => {
+          setError(errorText(cause)); setPeeking(false);
+          // The seat may already belong to this browser.
+          const mine = localStorage.getItem(seatKey(ticket.code, "player")) ?? localStorage.getItem(seatKey(ticket.code, "monster"));
+          if (mine) { setCode(ticket.code); setToken(mine); codeRef.current = ticket.code; tokenRef.current = mine; }
+        });
+        return;
+      }
+      const latest = url.searchParams.get("room") || localStorage.getItem("night-archive:latest");
       if (latest) {
-        const requestedSide = url.searchParams.get("as") || sessionStorage.getItem(tabSideKey(latest));
-        const side = requestedSide === "monster" ? "monster" : "player";
+        const requested = url.searchParams.get("as") || sessionStorage.getItem(tabSideKey(latest));
+        const side: Side = requested === "player" ? "player" : "monster";
         const transferred = new URLSearchParams(url.hash.slice(1)).get("seat");
         if (transferred) {
-          localStorage.setItem(storageKey(latest, side), transferred);
+          localStorage.setItem(seatKey(latest, side), transferred);
           sessionStorage.setItem(tabSideKey(latest), side);
           history.replaceState(null, "", `${url.pathname}?room=${encodeURIComponent(latest)}&as=${side}`);
         }
-        const saved = transferred ?? localStorage.getItem(storageKey(latest, side))
-          ?? (requestedSide ? null : localStorage.getItem(storageKey(latest, "monster")))
-          ?? localStorage.getItem(`night-archive:seat:${latest}`);
-        if (saved) { setCode(latest); setToken(saved); codeRef.current = latest; tokenRef.current = saved; setInvite(localStorage.getItem(`night-archive:invite:${latest}`) ?? ""); }
+        const seat = transferred ?? localStorage.getItem(seatKey(latest, side)) ?? (requested ? null : localStorage.getItem(seatKey(latest, side === "monster" ? "player" : "monster")));
+        if (seat) { setCode(latest); setToken(seat); codeRef.current = latest; tokenRef.current = seat; setInvite(localStorage.getItem(`night-archive:invite:${latest}`) ?? ""); }
       }
-      setReduced(matchMedia("(prefers-reduced-motion: reduce)").matches);
     });
     return () => { mounted = false; };
-  }, []);
+  }, [request]);
 
-  useEffect(() => {
-    const tick = () => setNow(Date.now());
-    tick(); const interval = window.setInterval(tick, 250);
-    return () => window.clearInterval(interval);
-  }, []);
-  useEffect(() => {
-    if (!error) return;
-    const timeout = window.setTimeout(() => setError(""), 5000);
-    return () => window.clearTimeout(timeout);
-  }, [error]);
-  useEffect(() => {
-    if (!note) return;
-    const timeout = window.setTimeout(() => setNote(""), 3300);
-    return () => window.clearTimeout(timeout);
-  }, [note]);
-  useEffect(() => {
-    if (game?.phase !== "intro") return;
-    const key = `${code}:${game.round}`;
-    if (introSound.current === key) return;
-    introSound.current = key;
-    audio.play("start");
-  }, [game?.phase, game?.round, code, audio]);
+  useEffect(() => { const id = window.setInterval(() => setNow(Date.now() + clock.current), 200); return () => window.clearInterval(id); }, []);
+  useEffect(() => { if (!error) return; const id = window.setTimeout(() => setError(""), 5000); return () => window.clearTimeout(id); }, [error]);
+  useEffect(() => { if (!note) return; const id = window.setTimeout(() => setNote(""), 3600); return () => window.clearTimeout(id); }, [note]);
+  useEffect(() => { if (!radio) return; const id = window.setTimeout(() => { setRadio(null); audio.play("radioEnd"); }, 6500); return () => window.clearTimeout(id); }, [radio, audio]);
+  useEffect(() => { if (reading === null) return; const id = window.setTimeout(() => setReading(null), 22_000); return () => window.clearTimeout(id); }, [reading]);
+  useEffect(() => { if (!screamer) return; const id = window.setTimeout(() => setScreamer(null), Math.max(50, screamer.until - Date.now() - clock.current)); return () => window.clearTimeout(id); }, [screamer]);
 
+  /* --------------------------------- polling --------------------------------- */
   useEffect(() => {
     if (!code || !token) return;
-    let active = true;
-    let timeout = 0;
+    let active = true, timeout = 0, failures = 0;
     const poll = async () => {
       try {
         const data = await request(undefined, token, code);
+        failures = 0;
         if (active && data.game) accept(data.game);
-      } catch (cause) { if (active) setError(errorText(cause)); }
-      if (active) timeout = window.setTimeout(poll, ["playing", "intro"].includes(gameRef.current?.phase ?? "") ? 270 : 850);
+      } catch (cause) {
+        failures++;
+        if (active && failures > 2) setError(errorText(cause));
+      }
+      const live = ["playing", "intro"].includes(gameRef.current?.phase ?? "");
+      if (active) timeout = window.setTimeout(poll, live ? 240 : 900);
     };
     void poll();
     return () => { active = false; window.clearTimeout(timeout); };
   }, [code, token, request, accept]);
 
-  const enter = useCallback((room: string, seat: string, side: "player" | "monster") => {
-    localStorage.setItem(storageKey(room, side), seat);
+  /* --------------------------------- actions --------------------------------- */
+  const enter = useCallback((room: string, seat: string, side: Side) => {
+    localStorage.setItem(seatKey(room, side), seat);
     sessionStorage.setItem(tabSideKey(room), side);
     localStorage.setItem("night-archive:latest", room);
     gameRef.current = null; setGame(null); seen.current.clear();
     codeRef.current = room; tokenRef.current = seat;
-    setCode(room); setToken(seat); setPanel(false); setJoining(false); setError("");
+    setCode(room); setToken(seat); setPanel(false); setJoining(false); setPeek(null); setPeeking(false); setError("");
     history.replaceState(null, "", `${location.pathname}?room=${encodeURIComponent(room)}&as=${side}`);
   }, []);
+  const goFullscreen = () => { if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {}); };
   const create = useCallback(async () => {
-    audio.unlock(); setBusy(true); setError("");
-    if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {});
+    audio.unlock(); setBusy(true); setError(""); goFullscreen();
     try {
-      const data = await request({ type: "create" }, "", "");
-      if (!data.code || !data.token || !data.monsterInvite) throw new Error("Не удалось создать комнату.");
-      localStorage.setItem(`night-archive:invite:${data.code}`, data.monsterInvite);
-      setInvite(data.monsterInvite); enter(data.code, data.token, "player");
+      const data = await request({ type: "create", side: chosenSide, name }, "", "");
+      if (!data.code || !data.token || !data.invite) throw new Error("Не удалось создать комнату.");
+      localStorage.setItem(`night-archive:invite:${data.code}`, data.invite);
+      setInvite(data.invite); enter(data.code, data.token, data.side ?? chosenSide);
     } catch (cause) { setError(errorText(cause)); }
     finally { setBusy(false); }
-  }, [audio, request, enter]);
+  }, [audio, request, enter, chosenSide, name]);
   const join = useCallback(async () => {
-    const ticket = parseInvite(joinLink);
-    if (!ticket) { setError("Откройте полную ссылку приглашения — одного кода комнаты недостаточно."); return; }
-    audio.unlock(); setBusy(true); setError("");
-    if (!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(() => {});
+    if (!peek) return;
+    audio.unlock(); setBusy(true); setError(""); goFullscreen();
     try {
-      const data = await request({ type: "join", ...ticket }, "", "");
+      const data = await request({ type: "join", code: peek.code, invite: peek.invite, name }, "", "");
       if (!data.code || !data.token) throw new Error("Не удалось войти.");
-      enter(data.code, data.token, "monster");
+      enter(data.code, data.token, data.side ?? peek.side);
     } catch (cause) { setError(errorText(cause)); }
     finally { setBusy(false); }
-  }, [joinLink, audio, request, enter]);
+  }, [peek, audio, request, enter, name]);
+  const openLink = useCallback(async () => {
+    const ticket = parseTicket(joinLink);
+    if (!ticket) { setError("Вставьте полную ссылку-приглашение."); return; }
+    setBusy(true);
+    try {
+      const data = await request({ type: "peek", ...ticket }, "", "");
+      setPeek({ ...ticket, host: data.host ?? "Друг", side: data.side ?? "player" }); setPeeking(true); setJoining(false);
+    } catch (cause) { setError(errorText(cause)); }
+    finally { setBusy(false); }
+  }, [joinLink, request]);
 
   const action = useCallback(async (value: Record<string, unknown>, quiet = false) => {
     if (!codeRef.current || !tokenRef.current) return false;
@@ -284,60 +272,105 @@ export default function Home() {
     try {
       const data = await request({ type: "action", code: codeRef.current, action: value });
       if (data.game) accept(data.game);
-      if (!quiet) setError("");
       return true;
     } catch (cause) {
       if (!quiet) setError(errorText(cause));
       return false;
     }
   }, [audio, request, accept]);
-  const input = useCallback((motion: MotionInput) => {
-    if (motionBusy.current) return;
-    motionBusy.current = true;
-    void action({ type: "move", ...motion }, true).finally(() => { motionBusy.current = false; });
-  }, [action]);
-  const trigger = useCallback((type: string) => {
+
+  // One move in flight at a time; the newest pending pose replaces older ones.
+  const sendMove = useCallback((m: MoveInput) => {
+    const run = (move: MoveInput) => {
+      moveBusy.current = true;
+      void request({ type: "move", code: codeRef.current, move })
+        .then(data => { if (data.game) accept(data.game); })
+        .catch(() => {})
+        .finally(() => {
+          moveBusy.current = false;
+          const next = pendingMove.current;
+          pendingMove.current = null;
+          if (next) run(next);
+        });
+    };
+    if (moveBusy.current) { pendingMove.current = m; return; }
+    run(m);
+  }, [request, accept]);
+
+  const trigger = useCallback((t: Trick) => {
     const g = gameRef.current;
     if (!g || g.side !== "monster") return;
-    const value: Record<string, unknown> = { type };
-    if (type === "blackout") value.zone = Math.max(0, Math.min(2, Math.floor((g.spectate?.x ?? g.self.x) / (g.map[0].length / 3))));
-    if (type === "knock") { value.x = Math.round(g.spectate?.x ?? g.self.x); value.y = Math.round(g.spectate?.y ?? g.self.y); }
-    void action(value);
+    if (t.input) { setTextTrick(t.input); return; }
+    void action({ type: t.type });
   }, [action]);
+  const sendText = useCallback((text: string) => {
+    const kind = textTrick;
+    setTextTrick(null);
+    if (kind) void action({ type: kind, text });
+  }, [textTrick, action]);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
-      if (event.key === "Tab" && gameRef.current) { event.preventDefault(); setPanel(value => !value); return; }
-      if (event.key === "Escape") { setPanel(false); return; }
+  const cancelHold = useCallback(() => {
+    if (holdRef.current) cancelAnimationFrame(holdRef.current.raf);
+    holdRef.current = null; setHold(0);
+  }, []);
+  const startHold = useCallback(() => {
+    cancelHold();
+    const start = performance.now();
+    const step = () => {
       const g = gameRef.current;
-      if (!g || g.phase !== "playing" || event.repeat) return;
-      const key = event.key.toLowerCase();
-      if (key === "e") { event.preventDefault(); void action({ type: g.side === "player" ? "interact" : "search" }); }
-      if (key === "f" && g.side === "player") { event.preventDefault(); void action({ type: "flare" }); }
-      if (key === "g" && g.side === "monster") { event.preventDefault(); void action({ type: "disguise" }); }
-      if (key === "p" && g.side === "monster") { event.preventDefault(); setPipLarge(value => !value); }
-      if (g.side === "monster") {
-        const trick = tricks.find(item => item.key === key);
-        if (trick && !panel) { event.preventDefault(); trigger(trick.type); }
+      const hint = g ? nearbyHint(g) : null;
+      if (!hint?.hold) { cancelHold(); return; }
+      const k = (performance.now() - start) / HOLD_MS;
+      if (k >= 1) { cancelHold(); void action({ type: "interact" }); return; }
+      setHold(k);
+      holdRef.current = { start, raf: requestAnimationFrame(step) };
+    };
+    holdRef.current = { start, raf: requestAnimationFrame(step) };
+  }, [action, cancelHold]);
+
+  /* --------------------------------- keyboard --------------------------------- */
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
+      const g = gameRef.current;
+      if (e.code === "Tab" && g) { e.preventDefault(); setPanel(v => !v); return; }
+      if (e.code === "Escape") { setPanel(false); setReading(null); setTextTrick(null); return; }
+      if (!g || e.repeat) return;
+      if (e.code === "KeyP" && g.side === "monster") { setPipLarge(v => !v); return; }
+      if (e.code === "KeyM" && g.side === "monster") { setShowMap(v => !v); return; }
+      if (g.phase !== "playing" || panel || textTrick) return;
+      if (g.side === "player") {
+        if (e.code === "KeyE") {
+          e.preventDefault();
+          if (reading !== null) { setReading(null); return; }
+          const hint = nearbyHint(g);
+          if (hint?.hold) startHold(); else void action({ type: "interact" });
+        }
+        if (e.code === "KeyQ") { e.preventDefault(); void action({ type: "flare" }); }
+      } else {
+        if (e.code === "KeyE") { e.preventDefault(); void action({ type: "search" }); }
+        if (e.code === "KeyG") { e.preventDefault(); void action({ type: "disguise" }); }
+        const t = TRICKS.find(x => x.key === e.code);
+        if (t) { e.preventDefault(); trigger(t); }
       }
     };
+    const onUp = (e: KeyboardEvent) => { if (e.code === "KeyE") cancelHold(); };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [action, trigger, panel]);
+    window.addEventListener("keyup", onUp);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("keyup", onUp); };
+  }, [action, trigger, panel, textTrick, reading, startHold, cancelHold]);
 
+  /* ------------------------------ agent tools ------------------------------ */
   useEffect(() => {
     type Tool = { name: string; title: string; description: string; inputSchema: object; annotations: { readOnlyHint: boolean }; execute: (input: unknown) => Promise<unknown> };
     const context = (document as Document & { modelContext?: { registerTool: (tool: Tool, options: { signal: AbortSignal }) => void | Promise<void> } }).modelContext;
     if (!context?.registerTool) return;
     const lifecycle = new AbortController();
     const register = (tool: Tool) => { void Promise.resolve(context.registerTool(tool, { signal: lifecycle.signal })).catch(() => {}); };
-    register({ name: "create_hospital_room", title: "Создать комнату", description: "Создать партию и получить приглашение для второго игрока.", inputSchema: { type: "object", properties: {}, additionalProperties: false }, annotations: { readOnlyHint: false },
-      async execute() { const data = await request({ type: "create" }, "", ""); if (!data.code || !data.token || !data.monsterInvite) throw new Error("Не удалось создать комнату."); localStorage.setItem(`night-archive:invite:${data.code}`, data.monsterInvite); setInvite(data.monsterInvite); enter(data.code, data.token, "player"); return { code: data.code, inviteUrl: `${location.origin}${location.pathname}?monster=${data.code}.${data.monsterInvite}` }; } });
-    register({ name: "join_hospital_as_monster", title: "Войти вторым игроком", description: "Занять роль монстра по личному приглашению.", inputSchema: { type: "object", properties: { code: { type: "string" }, invite: { type: "string" } }, required: ["code", "invite"], additionalProperties: false }, annotations: { readOnlyHint: false },
-      async execute(value) { const data = value as { code: string; invite: string }; const joined = await request({ type: "join", code: data.code, invite: data.invite }, "", ""); if (!joined.code || !joined.token) throw new Error("Не удалось войти."); enter(joined.code, joined.token, "monster"); return { code: joined.code, role: "monster" }; } });
-    register({ name: "perform_hospital_action", title: "Сделать действие", description: "Выполнить действие текущей роли с проверкой сервером.", inputSchema: { type: "object", properties: { type: { type: "string" }, forward: { type: "number" }, strafe: { type: "number" }, yaw: { type: "number" }, pitch: { type: "number" } }, required: ["type"], additionalProperties: true }, annotations: { readOnlyHint: false },
-      async execute(value) { const data = value as Record<string, unknown>; if (!codeRef.current || !tokenRef.current) throw new Error("Сначала войдите в комнату."); const result = await request({ type: "action", code: codeRef.current, action: data }); if (result.game) accept(result.game); return { phase: result.game?.phase, found: result.game?.found, position: result.game?.self }; } });
+    register({ name: "create_hospital_room", title: "Создать комнату", description: "Создать партию. side: monster или player — роль создателя.", inputSchema: { type: "object", properties: { side: { type: "string", enum: ["monster", "player"] }, name: { type: "string" } }, additionalProperties: false }, annotations: { readOnlyHint: false },
+      async execute(value) { const v = (value ?? {}) as { side?: Side; name?: string }; const data = await request({ type: "create", side: v.side ?? "monster", name: v.name ?? "" }, "", ""); if (!data.code || !data.token || !data.invite) throw new Error("Не удалось создать комнату."); localStorage.setItem(`night-archive:invite:${data.code}`, data.invite); setInvite(data.invite); enter(data.code, data.token, data.side ?? "monster"); return { code: data.code, inviteUrl: `${location.origin}${location.pathname}?join=${data.code}.${data.invite}` }; } });
+    register({ name: "perform_hospital_action", title: "Сделать действие", description: "Выполнить действие текущей роли с проверкой сервером.", inputSchema: { type: "object", properties: { type: { type: "string" }, text: { type: "string" } }, required: ["type"], additionalProperties: true }, annotations: { readOnlyHint: false },
+      async execute(value) { const data = value as Record<string, unknown>; if (!codeRef.current || !tokenRef.current) throw new Error("Сначала войдите в комнату."); const result = await request({ type: "action", code: codeRef.current, action: data }); if (result.game) accept(result.game); return { phase: result.game?.phase, found: result.game?.found }; } });
     return () => lifecycle.abort();
   }, [request, enter, accept]);
 
@@ -352,85 +385,82 @@ export default function Home() {
     url.search = `?room=${encodeURIComponent(codeRef.current)}&as=${current.side}`;
     url.hash = `seat=${encodeURIComponent(tokenRef.current)}`;
     setChromeUrl(url.href);
-    try {
-      await navigator.clipboard.writeText(url.href);
-      setNote("Личная ссылка скопирована.");
-    } catch { setNote("Выделите личную ссылку и скопируйте её вручную."); }
+    try { await navigator.clipboard.writeText(url.href); setNote("Личная ссылка скопирована."); }
+    catch { setNote("Выделите личную ссылку и скопируйте её вручную."); }
   };
   const leave = () => {
     localStorage.removeItem("night-archive:latest");
     if (codeRef.current) sessionStorage.removeItem(tabSideKey(codeRef.current));
-    gameRef.current = null; setGame(null); setCode(""); setToken(""); setInvite(""); setChromeUrl("");
+    gameRef.current = null; setGame(null); setCode(""); setToken(""); setInvite(""); setChromeUrl(""); setPanel(false);
     codeRef.current = ""; tokenRef.current = ""; seen.current.clear();
     history.replaceState(null, "", location.pathname);
   };
   const fullscreen = async () => {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await document.documentElement.requestFullscreen();
-    } catch { setNote("Полный экран можно включить кнопкой браузера."); }
+    try { if (document.fullscreenElement) await document.exitFullscreen(); else await document.documentElement.requestFullscreen(); }
+    catch { setNote("Полный экран можно включить кнопкой браузера."); }
   };
-  const inviteUrl = invite && code ? `${typeof location !== "undefined" ? location.origin + location.pathname : ""}?monster=${code}.${invite}` : "";
-  const evidenceTotal = game?.fuses.length ?? 4;
+
+  const inviteUrl = invite && code ? `${typeof location !== "undefined" ? location.origin + location.pathname : ""}?join=${code}.${invite}` : "";
   const isMonster = game?.side === "monster";
-  const active = !!game && !panel && !chromeUrl && (game.phase === "intro" || game.phase === "playing");
-  const activePrank = game?.side === "player" ? game.events.find(event => ["scare", "glitch", "shadow"].includes(event.type) && event.until > now) : null;
-  const intro = game?.phase === "intro" ? introCopy(game, now) : null;
-  const interaction = game ? nearbyHint(game) : "";
+  const active = !!game && !panel && !chromeUrl && !textTrick && (game.phase === "intro" || game.phase === "playing");
   const introElapsed = game ? now - game.startedAt : 0;
-  const cinematicCut = game && (game.phase === "intro" || game.phase === "playing" && now < game.introEndsAt + 750)
-    && (introElapsed >= 4_450 && introElapsed <= 5_250 || introElapsed >= 17_300 && introElapsed <= 18_750);
+  const intro = game?.phase === "intro" ? introCopy(game, introElapsed) : null;
+  const hint = game ? nearbyHint(game) : null;
+  const cinematic = game && (game.phase === "intro" || (game.phase === "playing" && now < game.introEndsAt + 1500))
+    ? introElapsed >= ARRIVAL_MS - 550 && introElapsed <= ARRIVAL_MS + 300 ? "ВЫ ВЫШЛИ ИЗ МАШИНЫ"
+      : introElapsed >= INTRO_MS - 700 && introElapsed <= INTRO_MS + 1400 ? "СВЕТ ПОГАС. ВЫ РАЗДЕЛЕНЫ." : null
+    : null;
+  const hidden = !isMonster && (game?.self.hidden ?? -1) >= 0;
 
-  return <main className="hospital-app" onPointerDown={audio.unlock}>
-    {!game && <section className="hospital-entry">
-      <div className="hospital-entry-sky" aria-hidden="true"><i className="hospital-building" /><i className="hospital-car" /></div>
-      <div className="hospital-entry-top"><span>КО-13 / ЗАКРЫТЫЙ КОРПУС</span><span>ИГРА ДЛЯ ДВОИХ</span></div>
-      <div className="hospital-entry-main">
-        <p className="hospital-kicker">ПОСЛЕДНИЙ ВЫЗОВ · ПСИХИАТРИЧЕСКАЯ БОЛЬНИЦА</p>
-        <h1>ТИХИЙ<br /><em>КОРПУС</em></h1>
-        <p className="hospital-lead">Вы приехали сюда вместе. Чтобы выйти, найдите истории пациентов и включите аварийный выход. Один из вас уже знает, что случится внутри.</p>
-        {!joining ? <div className="hospital-entry-actions"><button className="hospital-primary" disabled={busy} onClick={() => void create()}>Создать игру <span>↗</span></button><button className="hospital-plain" onClick={() => setJoining(true)}>У меня есть приглашение</button></div>
-          : <div className="hospital-join"><label>ПОЛНАЯ ССЫЛКА ПРИГЛАШЕНИЯ<input value={joinLink} onChange={event => setJoinLink(event.target.value)} placeholder="https://…?monster=…" autoComplete="off" /></label><button className="hospital-primary" disabled={busy} onClick={() => void join()}>Войти в больницу ↗</button><button className="hospital-plain" onClick={() => setJoining(false)}>Назад</button></div>}
-      </div>
-      <div className="hospital-entry-bottom"><span>ДВА ДРУГА · ОДНА НОЧЬ</span><span>WASD + МЫШЬ · TAB — ЗАДАЧА</span></div>
-    </section>}
+  return <main className={`hospital-app ${screamer ? "shaking" : ""}`} onPointerDown={() => audio.unlock()}>
+    {!game && !code && (peek || peeking
+      ? <InviteScreen peek={peek} name={name} setName={setName} busy={busy} onJoin={() => void join()} onBack={() => { setPeek(null); setPeeking(false); }} />
+      : <Landing name={name} setName={setName} side={chosenSide} setSide={setChosenSide} busy={busy} onCreate={() => void create()}
+        joining={joining} setJoining={setJoining} joinLink={joinLink} setJoinLink={setJoinLink} onJoinLink={() => void openLink()} />)}
+    {!game && code && <div className="hospital-loading">Открываем корпус…</div>}
 
-    {game && <section className="hospital-game">
-      <Suspense fallback={<div className="hospital-loading">Открываем корпус…</div>}><ThreeFirstPerson game={game} active={active} reduced={reduced} pipLarge={pipLarge} onInput={input} onCopyForChrome={() => void copyForChrome()} /></Suspense>
-      <div className="hospital-vignette" aria-hidden="true" />
+    {game && <section className={`hospital-game ${isMonster ? "monster" : "visitor"}`}>
+      <Suspense fallback={<div className="hospital-loading">Открываем корпус…</div>}>
+        <GameViewCanvas game={game} active={active} settings={settings} pipLarge={pipLarge} pipRef={pipRef} audio={audio} clock={clock}
+          onMove={sendMove} onAction={type => void action({ type }, true)} onLocal={s => setLocal(prev => (Math.abs(prev.stamina - s.stamina) > .02 || prev.crouch !== s.crouch || prev.light !== s.light || prev.sprinting !== s.sprinting) ? s : prev)}
+          onCopyForChrome={() => void copyForChrome()} />
+      </Suspense>
       <div className="hospital-reticle" aria-hidden="true" />
       <header className="hospital-hud">
-        <div className="hospital-hud-left"><button className="hospital-hud-button" onClick={() => setPanel(value => !value)} aria-expanded={panel}>TAB <span>{isMonster ? "РОЗЫГРЫШИ" : "ДЕЛО"}</span></button><div className="hospital-hud-objective"><strong>{isMonster ? game.self.disguised ? "ЧЕЛОВЕК" : "ОН ВИДИТ МОНСТРА" : `УЛИКИ ${game.found}/${evidenceTotal}`}</strong><small>{zoneName(game)} · {isMonster ? "G — СМЕНИТЬ ОБЛИК" : game.power ? "Выход разблокирован" : "Ищите истории пациентов"}</small></div></div>
-        <div className="hospital-hud-right"><span className="hospital-timer">{game.phase === "playing" ? timer(game.endsAt - now) : game.phase === "intro" ? timer(game.introEndsAt - now) : "12:00"}</span><button className="hospital-icon-button" onClick={() => void fullscreen()} aria-label="Полный экран" title="Полный экран">⛶</button></div>
+        <div className="hospital-hud-left">
+          <button className="hospital-hud-button" onClick={() => setPanel(v => !v)} aria-expanded={panel}>TAB <span>{isMonster ? "ПРИЁМЫ" : "ДЕЛО"}</span></button>
+          <div className="hospital-hud-objective"><strong>{zoneName(game)}</strong><small>{game.phase === "intro" ? "ПРИБЫТИЕ" : isMonster ? (game.self.disguised ? "ТЫ ВЫГЛЯДИШЬ КАК СПУТНИК" : "ТЕБЯ ВИДНО. ОХОТЬСЯ") : game.power ? "К ГЛАВНОМУ ВХОДУ" : "ИЩИТЕ ИСТОРИИ ПАЦИЕНТОВ"}</small></div>
+        </div>
+        <div className="hospital-hud-right">
+          <span className={`hospital-timer ${game.phase === "playing" && game.endsAt - now < 60_000 ? "urgent" : ""}`}>{game.phase === "playing" ? timer(game.endsAt - now) : game.phase === "intro" ? timer(game.introEndsAt - now) : "—:—"}</span>
+          <button className="hospital-icon-button" onClick={() => void fullscreen()} aria-label="Полный экран" title="Полный экран">⛶</button>
+        </div>
       </header>
-      {isMonster && game.spectate && game.phase !== "waiting" && <button className={`hospital-pip-label ${pipLarge ? "large" : ""}`} onClick={() => setPipLarge(value => !value)} aria-label="Изменить размер вида глазами друга"><span>● ГЛАЗА ДРУГА</span><small>{pipLarge ? "УМЕНЬШИТЬ" : "P · УВЕЛИЧИТЬ"}</small></button>}
-      {interaction && <div className="hospital-interaction">{interaction}</div>}
-      <div className="hospital-bottom-hint"><span>{game.phase === "intro" ? "МЫШЬ — ОСМОТРЕТЬСЯ · WASD — ИДТИ ПОСЛЕ ОСТАНОВКИ" : "WASD — СВОБОДНО ИДТИ · МЫШЬ — СМОТРЕТЬ · E — ДЕЙСТВИЕ · TAB — ПАНЕЛЬ"}</span></div>
+
+      {!isMonster && game.phase !== "waiting" && <VisitorHud game={game} local={local} now={now} hint={hint} hold={hold} />}
+      {isMonster && game.phase !== "waiting" && <>
+        <MonsterHud game={game} now={now} onTrick={trigger} onToggleForm={() => void action({ type: "disguise" })} />
+        <div ref={pipRef} className={`hospital-pip ${pipLarge ? "large" : ""}`} onClick={() => setPipLarge(v => !v)} role="button" aria-label="Изменить размер окна глаз друга">
+          <span><i />ГЛАЗА: {game.names.player.toUpperCase()}</span><small>{pipLarge ? "P · МЕНЬШЕ" : "P · БОЛЬШЕ"}</small>
+        </div>
+        {showMap && game.phase === "playing" && <Minimap game={game} lastSeen={lastSeen} now={now} />}
+        {hint && <div className="hospital-interaction">{hint.text}</div>}
+      </>}
+      {!isMonster && game.phase === "playing" && now < game.introEndsAt + 30_000 && <div className="hospital-bottom-hint">WASD · SHIFT бег · C присесть · E действие · F фонарь · Q вспышка · TAB дело</div>}
       {intro && <div className="hospital-intro-caption"><span>{intro.kicker}</span><h2>{intro.title}</h2><p>{intro.text}</p></div>}
-      {cinematicCut && <div className="hospital-cinematic-cut" aria-hidden="true"><span>{introElapsed < 6_000 ? "ВЫ ВЫШЛИ ИЗ МАШИНЫ" : "СВЕТ ПОГАС. ВЫ РАЗДЕЛЕНЫ."}</span></div>}
-      {game.phase === "waiting" && <div className="hospital-modal-scrim"><div className="hospital-modal"><p className="hospital-kicker">КОМНАТА {code}</p><h2>Ждём второго игрока</h2><p>Отправьте другу приглашение. Вы начнёте вместе в машине у входа в корпус.</p>{inviteUrl && <><input readOnly value={inviteUrl} aria-label="Ссылка приглашения" onFocus={event => event.currentTarget.select()} /><button className="hospital-primary" onClick={() => void copy(inviteUrl)}>Скопировать приглашение</button></>}</div></div>}
-      {chromeUrl && <div className="hospital-modal-scrim"><div className="hospital-modal"><p className="hospital-kicker">ЗАХВАТ МЫШИ</p><h2>Откройте в Chrome</h2><p>Скопируйте личную ссылку в обычный Chrome. Вы вернётесь в ту же комнату и к той же роли. Эту ссылку нельзя отправлять другу.</p><input readOnly value={chromeUrl} aria-label="Личная ссылка для Chrome" onFocus={event => event.currentTarget.select()} onClick={event => event.currentTarget.select()} /><button className="hospital-primary" onClick={() => void copyForChrome()}>Скопировать личную ссылку</button><button className="hospital-plain" onClick={() => setChromeUrl("")}>Вернуться в игру</button></div></div>}
-      {game.phase === "ended" && <div className="hospital-modal-scrim"><div className="hospital-modal"><p className="hospital-kicker">ДЕЛО ЗАКРЫТО · ПАРТИЯ {game.round}</p><h2>{game.winner === "player" ? "Улики вынесены наружу" : "Больница удержала гостя"}</h2><p>{game.reason}</p><button className="hospital-primary" disabled={game.votes[game.side]} onClick={() => void action({ type: "rematch" })}>{game.votes[game.side] ? "Ждём друга" : "Предложить реванш"}</button><button className="hospital-plain" onClick={leave}>Новая комната</button></div></div>}
-      {panel && <div className="hospital-panel-backdrop" onClick={() => setPanel(false)}><aside className="hospital-panel" onClick={event => event.stopPropagation()} aria-label={isMonster ? "Панель монстра" : "Дело пациента"}>
-        <div className="hospital-panel-head"><span>{isMonster ? "КОНСОЛЬ КОРПУСА" : "ЛИЧНОЕ ДЕЛО"}</span><button onClick={() => setPanel(false)} aria-label="Закрыть панель">×</button></div>
-        <h2>{isMonster ? "Держи его в страхе." : "Найдите путь наружу."}</h2>
-        {isMonster ? <>
-          <p className="hospital-panel-lead">Смотри глазами друга в углу экрана. Подходи к нему как спутник или раскрывайся клавишей G. Розыгрыши влияют на восприятие, а не ломают соединение.</p>
-          <div className="hospital-energy">ПОМЕХИ <strong>{Math.floor(game.self.energy ?? 0)} / 100</strong><i style={{ width: `${game.self.energy ?? 0}%` }} /></div>
-          <button className="hospital-disguise" onClick={() => void action({ type: "disguise" })}>{game.self.disguised ? "G · Раскрыть настоящую форму" : "G · Выглядеть как обычный спутник"}<small>Маску можно менять в любой момент.</small></button>
-          <div className="hospital-tricks">{tricks.map(trick => <button key={trick.type} disabled={game.phase !== "playing" || (game.cooldowns?.[trick.type] ?? 0) > now || (game.self.energy ?? 0) < trick.cost || trick.type === "lock" && !game.power} onClick={() => trigger(trick.type)}><b>{trick.key}</b><span><strong>{trick.label} · {trick.cost}</strong><small>{trick.detail}</small></span>{(game.cooldowns?.[trick.type] ?? 0) > now && <em>{timer((game.cooldowns?.[trick.type] ?? 0) - now)}</em>}</button>)}</div>
-        </> : <>
-          <p className="hospital-panel-lead">Соберите четыре истории пациентов, запустите аварийное питание у поста охраны и вернитесь к выходу. У вас есть двенадцать минут.</p>
-          <div className="hospital-case-row"><span>НАЙДЕНО УЛИК</span><strong>{game.found} / {evidenceTotal}</strong></div>
-          <div className="hospital-case-row"><span>АВАРИЙНОЕ ПИТАНИЕ</span><strong>{game.power ? "ВКЛЮЧЕНО" : "ОТКЛЮЧЕНО"}</strong></div>
-          <div className="hospital-case-row"><span>ВЫХОД</span><strong>{game.power ? "ИЩИТЕ ВХОД" : "ЗАКРЫТ"}</strong></div>
-          <p className="hospital-panel-lead">E — изучить улику, включить питание или выйти. F — вспышка фонаря, если спутник раскрылся. Вы можете оглядываться до самого пола и потолка.</p>
-        </>}
-        <div className="hospital-panel-foot"><span>КОМНАТА {code}</span><button onClick={() => { audio.unlock(); audio.setMuted(!audio.muted); }}>{audio.muted ? "ЗВУК ВЫКЛ" : "ЗВУК ВКЛ"}</button><button onClick={() => setReduced(value => !value)}>{reduced ? "ЭФФЕКТЫ СНИЖЕНЫ" : "СНИЗИТЬ ЭФФЕКТЫ"}</button><button onClick={leave}>ПОКИНУТЬ КОМНАТУ</button></div>
-      </aside></div>}
-      {activePrank?.type === "glitch" && !reduced && <div className="hospital-fake-lag" aria-hidden="true"><strong>СИГНАЛ ПОТЕРЯН</strong><span>ПОДКЛЮЧЕНИЕ К КОРПУСУ…</span></div>}
-      {activePrank?.type === "shadow" && !reduced && <div className="hospital-shadow" aria-hidden="true" />}
-      {activePrank?.type === "scare" && !reduced && <div className="hospital-scare" aria-hidden="true"><span>ОН РЯДОМ</span></div>}
+      {cinematic && <div className="hospital-cinematic-cut" aria-hidden="true"><span>{cinematic}</span></div>}
+      {hidden && <LockerView />}
+      {radio && !isMonster && <RadioLine name={radio.name} text={radio.text} at={radio.at} />}
+      {reading !== null && !isMonster && <DocumentReader story={reading} onClose={() => setReading(null)} />}
+      {fakeLag > now && !isMonster && <FakeLag until={fakeLag} now={now} />}
+      {screamer && <Screamer variant={screamer.variant} caught={screamer.caught} duration={screamer.caught ? 2300 : 1400} />}
+      {game.phase === "waiting" && <Waiting code={code} inviteUrl={inviteUrl} side={game.side} onCopy={() => void copy(inviteUrl)} />}
+      {chromeUrl && <div className="hospital-modal-scrim"><div className="hospital-modal"><p className="hospital-kicker">ЗАХВАТ МЫШИ</p><h2>Откройте в Chrome</h2><p>Скопируйте личную ссылку в обычный Chrome. Вы вернётесь в ту же комнату и к той же роли. Эту ссылку нельзя отправлять другу.</p><input readOnly value={chromeUrl} aria-label="Личная ссылка для Chrome" onFocus={e => e.currentTarget.select()} onClick={e => e.currentTarget.select()} /><button className="hospital-primary" onClick={() => void copyForChrome()}>Скопировать личную ссылку</button><button className="hospital-plain" onClick={() => setChromeUrl("")}>Вернуться в игру</button></div></div>}
+      {game.phase === "ended" && !screamer && <Ending game={game} onRematch={swap => void action({ type: "rematch", swap })} onLeave={leave} />}
+      {panel && <Panel game={game} code={code} settings={settings} setSettings={setSettings} onClose={() => setPanel(false)} onLeave={leave}
+        onTrick={t => { trigger(t); if (!t.input) setPanel(false); }} onForm={() => void action({ type: "disguise" })} onRead={id => { setReading(id); setPanel(false); }} now={now} />}
+      {textTrick && <TextTrick kind={textTrick} friend={game.names.player} onSend={sendText} onClose={() => setTextTrick(null)} />}
+      {game.phase !== "waiting" && !game.otherConnected && game.phase !== "ended" && <div className="hospital-offline">Второй игрок не на связи…</div>}
     </section>}
     {error && <div className="hospital-error" role="alert">{error}<button onClick={() => setError("")} aria-label="Закрыть">×</button></div>}
     {note && <div className="hospital-note" role="status">{note}</div>}

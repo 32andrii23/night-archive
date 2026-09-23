@@ -3,7 +3,8 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Тихий корпус — хоррор для двоих",
-  description: "Два друга приехали в закрытую больницу. Один ищет улики и выход, другой скрывает свою настоящую форму.",
+  // Shown in link previews of the invite, so it must not spoil who the creature is.
+  description: "Ночь в закрытом корпусе психбольницы. Хоррор для двоих: найдите истории пациентов и выберитесь до конца смены.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",

@@ -140,6 +140,7 @@ export default function Home() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [note, setNote] = useState("");
+  const [chromeUrl, setChromeUrl] = useState("");
   const [panel, setPanel] = useState(false);
   const [pipLarge, setPipLarge] = useState(false);
   const [reduced, setReduced] = useState(false);
@@ -350,15 +351,16 @@ export default function Home() {
     const url = new URL(location.href);
     url.search = `?room=${encodeURIComponent(codeRef.current)}&as=${current.side}`;
     url.hash = `seat=${encodeURIComponent(tokenRef.current)}`;
+    setChromeUrl(url.href);
     try {
       await navigator.clipboard.writeText(url.href);
-      setNote("Личная ссылка скопирована. Откройте её в Chrome; после входа ключ исчезнет из адреса.");
-    } catch { setError("Не удалось скопировать ссылку. Откройте игру в обычном браузере."); }
+      setNote("Личная ссылка скопирована.");
+    } catch { setNote("Выделите личную ссылку и скопируйте её вручную."); }
   };
   const leave = () => {
     localStorage.removeItem("night-archive:latest");
     if (codeRef.current) sessionStorage.removeItem(tabSideKey(codeRef.current));
-    gameRef.current = null; setGame(null); setCode(""); setToken(""); setInvite("");
+    gameRef.current = null; setGame(null); setCode(""); setToken(""); setInvite(""); setChromeUrl("");
     codeRef.current = ""; tokenRef.current = ""; seen.current.clear();
     history.replaceState(null, "", location.pathname);
   };
@@ -371,7 +373,7 @@ export default function Home() {
   const inviteUrl = invite && code ? `${typeof location !== "undefined" ? location.origin + location.pathname : ""}?monster=${code}.${invite}` : "";
   const evidenceTotal = game?.fuses.length ?? 4;
   const isMonster = game?.side === "monster";
-  const active = !!game && !panel && (game.phase === "intro" || game.phase === "playing");
+  const active = !!game && !panel && !chromeUrl && (game.phase === "intro" || game.phase === "playing");
   const activePrank = game?.side === "player" ? game.events.find(event => ["scare", "glitch", "shadow"].includes(event.type) && event.until > now) : null;
   const intro = game?.phase === "intro" ? introCopy(game, now) : null;
   const interaction = game ? nearbyHint(game) : "";
@@ -407,6 +409,7 @@ export default function Home() {
       {intro && <div className="hospital-intro-caption"><span>{intro.kicker}</span><h2>{intro.title}</h2><p>{intro.text}</p></div>}
       {cinematicCut && <div className="hospital-cinematic-cut" aria-hidden="true"><span>{introElapsed < 6_000 ? "ВЫ ВЫШЛИ ИЗ МАШИНЫ" : "СВЕТ ПОГАС. ВЫ РАЗДЕЛЕНЫ."}</span></div>}
       {game.phase === "waiting" && <div className="hospital-modal-scrim"><div className="hospital-modal"><p className="hospital-kicker">КОМНАТА {code}</p><h2>Ждём второго игрока</h2><p>Отправьте другу приглашение. Вы начнёте вместе в машине у входа в корпус.</p>{inviteUrl && <><input readOnly value={inviteUrl} aria-label="Ссылка приглашения" onFocus={event => event.currentTarget.select()} /><button className="hospital-primary" onClick={() => void copy(inviteUrl)}>Скопировать приглашение</button></>}</div></div>}
+      {chromeUrl && <div className="hospital-modal-scrim"><div className="hospital-modal"><p className="hospital-kicker">ЗАХВАТ МЫШИ</p><h2>Откройте в Chrome</h2><p>Скопируйте личную ссылку в обычный Chrome. Вы вернётесь в ту же комнату и к той же роли. Эту ссылку нельзя отправлять другу.</p><input readOnly value={chromeUrl} aria-label="Личная ссылка для Chrome" onFocus={event => event.currentTarget.select()} onClick={event => event.currentTarget.select()} /><button className="hospital-primary" onClick={() => void copyForChrome()}>Скопировать личную ссылку</button><button className="hospital-plain" onClick={() => setChromeUrl("")}>Вернуться в игру</button></div></div>}
       {game.phase === "ended" && <div className="hospital-modal-scrim"><div className="hospital-modal"><p className="hospital-kicker">ДЕЛО ЗАКРЫТО · ПАРТИЯ {game.round}</p><h2>{game.winner === "player" ? "Улики вынесены наружу" : "Больница удержала гостя"}</h2><p>{game.reason}</p><button className="hospital-primary" disabled={game.votes[game.side]} onClick={() => void action({ type: "rematch" })}>{game.votes[game.side] ? "Ждём друга" : "Предложить реванш"}</button><button className="hospital-plain" onClick={leave}>Новая комната</button></div></div>}
       {panel && <div className="hospital-panel-backdrop" onClick={() => setPanel(false)}><aside className="hospital-panel" onClick={event => event.stopPropagation()} aria-label={isMonster ? "Панель монстра" : "Дело пациента"}>
         <div className="hospital-panel-head"><span>{isMonster ? "КОНСОЛЬ КОРПУСА" : "ЛИЧНОЕ ДЕЛО"}</span><button onClick={() => setPanel(false)} aria-label="Закрыть панель">×</button></div>

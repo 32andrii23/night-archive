@@ -127,7 +127,8 @@ function render(ctx: CanvasRenderingContext2D, g: FirstPersonGame, yaw: number, 
 export default function FirstPerson({ game, yaw, reduced }: { game: FirstPersonGame; yaw: React.MutableRefObject<number>; reduced: boolean }) {
   const shown = useRef<HTMLCanvasElement>(null), back = useRef<HTMLCanvasElement | null>(null), textures = useRef<Textures | null>(null);
   const pitch = useRef(0);
-  const gameRef = useRef(game); gameRef.current = game;
+  const gameRef = useRef(game);
+  useEffect(() => { gameRef.current = game; }, [game]);
   useEffect(() => { if (!back.current) { back.current = document.createElement("canvas"); back.current.width = RW; back.current.height = RH; textures.current = { wall: texture("wall"), shelf: texture("shelf"), metal: texture("metal") }; } }, []);
   useEffect(() => { const display = shown.current, buffer = back.current, tex = textures.current; if (!display || !buffer || !tex) return;
     const context = display.getContext("2d", { alpha: false }), low = buffer.getContext("2d", { alpha: false }); if (!context || !low) return;

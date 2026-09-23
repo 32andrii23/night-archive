@@ -108,7 +108,7 @@ export default function Home() {
   const [monsterInvite, setMonsterInvite] = useState(""), [showMonster, setShowMonster] = useState(false);
   const [joinCode, setJoinCode] = useState(""), [joinInvite, setJoinInvite] = useState("");
   const [error, setError] = useState(""), [note, setNote] = useState(""), [busy, setBusy] = useState(false);
-  const [clock, setClock] = useState(Date.now()), [reduced, setReduced] = useState(false), [tool, setTool] = useState<"walk" | "knock">("walk"), [plan, setPlan] = useState(false);
+  const [clock, setClock] = useState(0), [reduced, setReduced] = useState(false), [tool, setTool] = useState<"walk" | "knock">("walk"), [plan, setPlan] = useState(false);
   const sound = useSound(), gameRef = useRef<View | null>(null), tokenRef = useRef(""), codeRef = useRef("");
   const yaw = useRef(0);
   const sending = useRef(false), seen = useRef(new Set<string>()), queue = useRef<Pt[]>([]);
@@ -129,17 +129,21 @@ export default function Home() {
     if (seen.current.size > 200) seen.current = new Set(v.events.map(e => e.id));
     gameRef.current = v; setGame(v);
   }, [sound, reduced]);
-  useEffect(() => { const url = new URL(location.href), monster = url.searchParams.get("monster");
-    if (monster) { const dot = monster.indexOf("."); if (dot > 0) { setShowMonster(true); setJoinCode(monster.slice(0, dot)); setJoinInvite(monster.slice(dot + 1)); } history.replaceState(null, "", url.pathname); }
-    const resume = !monster && (url.searchParams.get("room") || localStorage.getItem("night-archive:latest"));
-    if (resume) { const saved = localStorage.getItem(storageKey(resume)); if (saved) { setCode(resume); setToken(saved); setMonsterInvite(localStorage.getItem(`night-archive:invite:${resume}`) ?? ""); codeRef.current = resume; tokenRef.current = saved; } }
-    setReduced(matchMedia("(prefers-reduced-motion: reduce)").matches);
+  useEffect(() => { let active = true;
+    queueMicrotask(() => { if (!active) return;
+      const url = new URL(location.href), monster = url.searchParams.get("monster");
+      if (monster) { const dot = monster.indexOf("."); if (dot > 0) { setShowMonster(true); setJoinCode(monster.slice(0, dot)); setJoinInvite(monster.slice(dot + 1)); } history.replaceState(null, "", url.pathname); }
+      const resume = !monster && (url.searchParams.get("room") || localStorage.getItem("night-archive:latest"));
+      if (resume) { const saved = localStorage.getItem(storageKey(resume)); if (saved) { setCode(resume); setToken(saved); setMonsterInvite(localStorage.getItem(`night-archive:invite:${resume}`) ?? ""); codeRef.current = resume; tokenRef.current = saved; } }
+      setReduced(matchMedia("(prefers-reduced-motion: reduce)").matches);
+    });
+    return () => { active = false; };
   }, []);
   useEffect(() => { if (!code || !token) return; let active = true;
     const poll = async () => { try { const data = await request(undefined, token, code); if (active) accept(data.game); } catch (e) { if (active) setError(message(e)); } };
     void poll(); const id = setInterval(poll, 900); return () => { active = false; clearInterval(id); };
   }, [code, token, request, accept]);
-  useEffect(() => { const id = setInterval(() => setClock(Date.now()), 250); return () => clearInterval(id); }, []);
+  useEffect(() => { const tick = () => setClock(Date.now()); const id = setInterval(tick, 250); tick(); return () => clearInterval(id); }, []);
   useEffect(() => { if (!note) return; const id = setTimeout(() => setNote(""), reduced ? 1100 : 2400); return () => clearTimeout(id); }, [note, reduced]);
   useEffect(() => { if (!error) return; const id = setTimeout(() => setError(""), 4500); return () => clearTimeout(id); }, [error]);
   const enter = useCallback((room: string, seat: string) => { localStorage.setItem(storageKey(room), seat); localStorage.setItem("night-archive:latest", room);
